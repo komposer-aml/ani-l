@@ -4,14 +4,12 @@ use std::pin::Pin;
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-// New Enum to define navigation direction
 #[derive(Debug, Clone, Copy)]
 pub enum EpisodeAction {
     Next,
     Previous,
 }
 
-// Resolver now accepts an action
 pub type EpisodeNavigator =
     Box<dyn Fn(EpisodeAction) -> BoxFuture<'static, Result<Option<PlayOptions>>> + Send + Sync>;
 
