@@ -20,9 +20,10 @@ use serde_json::json;
 use std::io::{self, Write};
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::config::ConfigManager;
-use crate::player::traits::{NextEpisodeResolver, PlayOptions, Player};
+use crate::player::traits::{EpisodeAction, EpisodeNavigator, PlayOptions, Player};
 use crate::provider::allanime::AllAnimeProvider;
 use crate::registry::RegistryManager;
 use crate::tui::app::{App, Focus, ListMode};
@@ -227,6 +228,7 @@ async fn main() -> anyhow::Result<()> {
                 title,
                 ..Default::default()
             };
+            // Interactive player via CLI doesn't support next/prev logic yet
             if let Err(e) = player.play(options, None).await {
                 eprintln!("❌ Playback failed: {}", e);
             }
@@ -478,10 +480,10 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                                     ));
                                 }
                             }
-                            tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+                            tokio::time::sleep(Duration::from_millis(800)).await;
                         } else {
                             app.set_status("Not logged in. Starting at Episode 1.");
-                            tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+                            tokio::time::sleep(Duration::from_millis(800)).await;
                         }
 
                         suspend_and_watch(
@@ -591,7 +593,7 @@ async fn resolve_stream_for_episode(
 
 async fn perform_watch(
     query: String,
-    episode: String,
+    mut episode: String,
     anilist_id: Option<i32>,
     config: &ConfigManager,
 ) -> anyhow::Result<()> {
@@ -613,13 +615,13 @@ async fn perform_watch(
             let current_ep_num =
                 std::sync::Arc::new(tokio::sync::Mutex::new(episode.parse::<i32>().unwrap_or(1)));
 
-            let next_resolver: NextEpisodeResolver = {
+            let navigator: EpisodeNavigator = {
                 let p = provider_clone.clone();
                 let s_id = show_id.clone();
                 let s_name = show_name.clone();
                 let ep_num_store = current_ep_num.clone();
 
-                Box::new(move || {
+                Box::new(move |action| {
                     let p = p.clone();
                     let s_id = s_id.clone();
                     let s_name = s_name.clone();
@@ -627,7 +629,18 @@ async fn perform_watch(
 
                     Box::pin(async move {
                         let mut num = ep_store.lock().await;
-                        *num += 1;
+
+                        match action {
+                            EpisodeAction::Next => *num += 1,
+                            EpisodeAction::Previous => {
+                                if *num > 1 {
+                                    *num -= 1;
+                                } else {
+                                    return Ok(None);
+                                }
+                            }
+                        }
+
                         let next_ep_str = num.to_string();
                         resolve_stream_for_episode(&p, &s_id, &s_name, &next_ep_str).await
                     })
@@ -636,30 +649,41 @@ async fn perform_watch(
 
             let player = crate::player::mpv::MpvPlayer;
 
-            match player.play(options, Some(next_resolver)).await {
+            match player.play(options, Some(navigator)).await {
                 Ok(percentage) => {
                     println!("\n✅ Playback finished. Max progress: {:.1}%", percentage);
 
                     let final_ep_num = *current_ep_num.lock().await;
                     let required_percentage = config.config.stream.episode_complete_at as f64;
 
-                    if percentage >= required_percentage
-                        && let (Some(token), Some(username), Some(id)) = (
+                    if percentage >= required_percentage {
+                        if let (Some(token), Some(username), Some(id)) = (
                             &config.auth.anilist_token,
                             &config.auth.username,
                             anilist_id,
-                        )
-                    {
-                        let current_progress = api::get_user_progress(token, id, username)
-                            .await?
-                            .unwrap_or(0);
-                        if final_ep_num > current_progress {
-                            println!(
-                                "📝 Updating AniList progress to Episode {}...",
-                                final_ep_num
-                            );
-                            api::update_user_entry(token, id, final_ep_num, "CURRENT").await?;
+                        ) {
+                            let current_progress = api::get_user_progress(token, id, username)
+                                .await?
+                                .unwrap_or(0);
+
+                            if final_ep_num > current_progress {
+                                println!(
+                                    "📝 Updating AniList progress to Episode {}...",
+                                    final_ep_num
+                                );
+                                api::update_user_entry(token, id, final_ep_num, "CURRENT").await?;
+                            } else {
+                                println!(
+                                    "ℹ️  Already watched episode {} (Progress: {}). Skipping update.",
+                                    final_ep_num, current_progress
+                                );
+                            }
                         }
+                    } else {
+                        println!(
+                            "⚠️  Watched less than {}%. Not marking as complete.",
+                            required_percentage
+                        );
                     }
                 }
                 Err(e) => eprintln!("Player error: {}", e),
