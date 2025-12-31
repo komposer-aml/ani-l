@@ -30,3 +30,98 @@ Ensure you have Rust and Cargo installed. Then run:
 ```bash
 cargo install ani-l
 ```
+
+## 🚀 Usage
+
+### TUI Mode (Default)
+
+Simply run the command to enter the interactive interface:
+
+```bash
+ani-l
+```
+
+#### Keybindings
+
+| Key             | Action                |
+| :-------------- | :-------------------- |
+| /               | Focus Search Bar      |
+| Enter           | Select / Search       |
+| j / Down        | Move Down             |
+| k / Up          | Move Up               |
+| J / PgDn        | Jump Down (10 items)  |
+| K / PgUp        | Jump Up (10 items)    |
+| Esc / Backspace | Go Back / Cancel      |
+| q               | Quit (from Main Menu) |
+
+#### CLI Commands
+
+You can also use ani-l directly from the command line without the TUI.
+Search for an Anime:
+
+```bash
+ani-l search query --text "Naruto"
+```
+
+View Trending Anime:
+
+```bash
+ani-l search trending --page 1
+```
+
+Play a specific URL:
+
+```bash
+ani-l play --url "[https://example.com/video.mp4](https://example.com/video.mp4)" --title "My Video"
+```
+
+Watch a specific episode (CLI Stream):
+
+```bash
+# Searches and attempts to stream Episode 1 automatically
+ani-l watch --query "One Piece" --episode 1
+```
+
+### ⚙️ Configuration
+
+`ani-l` stores configuration files in your system's standard config directory:
+
+• Linux: `~/.config/ani-l/config.toml`
+
+• macOS: `~/Library/Application Support/com.sleepy-foundry.ani-l/config.toml`
+
+• Windows: `C:\Users\You\AppData\Roaming\sleepy-foundry\ani-l\config.toml`
+
+Example config.toml:
+
+```toml
+[general]
+provider = "allanime"
+
+[stream]
+player = "mpv"
+quality = "1080"
+translation_type = "sub"
+episode_complete_at = 85
+```
+
+## 👾 Contribution Guide
+
+Contributions are welcome!
+
+1. Fork the repository.
+2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/ani-l.git`
+3. Create a new Branch: `git checkout -b type/issue_id-short_description`
+4. Commit your changes: `git commit -m 'feat(scope): Added some amazing feature'`
+5. Push to the branch: `git push origin feat/123-amazing-feature`
+6. Open a Pull Request.
+
+### Development Guidelines
+
+- Ensure your code is formatted: `cargo fmt`
+- Check for lints: `cargo clippy`
+- Run tests: `cargo test`
+
+## 📄 License
+
+This project is licensed under the LGPL-2.1 License.

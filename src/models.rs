@@ -10,7 +10,13 @@ pub struct AniListResponse {
 #[derive(Debug, Deserialize, Clone)]
 pub struct Data {
     #[serde(rename = "Page")]
-    pub page: Page,
+    pub page: Option<Page>,
+    #[serde(rename = "Viewer")]
+    pub viewer: Option<User>,
+    #[serde(rename = "SaveMediaListEntry")]
+    pub saved_entry: Option<MediaListEntry>,
+    #[serde(rename = "MediaList")]
+    pub media_list: Option<MediaListEntry>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -72,6 +78,22 @@ pub struct StudioConnection {
 #[derive(Debug, Deserialize, Clone)]
 pub struct Studio {
     pub name: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct User {
+    pub id: i32,
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MediaListEntry {
+    pub id: Option<i32>,
+    #[serde(rename = "mediaId")]
+    pub media_id: Option<i32>,
+    pub status: Option<String>,
+    pub progress: Option<i32>,
+    pub score: Option<f64>,
 }
 
 impl Media {

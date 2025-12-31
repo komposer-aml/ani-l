@@ -121,9 +121,9 @@ impl AllAnimeProvider {
             .or(resp.links.last())
             .context("No stream links found")?;
 
-        let mut headers = std::collections::HashMap::new();
-        headers.insert("User-Agent".to_string(), USER_AGENT.to_string());
-        headers.insert("Referer".to_string(), "https://allanime.day/".to_string());
+        let mut headers = Vec::new();
+        headers.push(("User-Agent".to_string(), USER_AGENT.to_string()));
+        headers.push(("Referer".to_string(), "https://allanime.day/".to_string()));
 
         Ok(PlayOptions {
             url: best_link.link.clone(),
