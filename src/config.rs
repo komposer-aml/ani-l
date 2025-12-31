@@ -105,3 +105,28 @@ impl ConfigManager {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config_values() {
+        let config = Config::default();
+
+        assert_eq!(config.general.provider, "allanime");
+        assert_eq!(config.stream.player, "mpv");
+        assert_eq!(config.stream.quality, "1080");
+        assert_eq!(config.stream.translation_type, "sub");
+        assert_eq!(config.stream.episode_complete_at, 85);
+    }
+
+    #[test]
+    fn test_config_serialization() {
+        let config = Config::default();
+        let toml_str = toml::to_string(&config).expect("Failed to serialize");
+
+        assert!(toml_str.contains("provider = \"allanime\""));
+        assert!(toml_str.contains("quality = \"1080\""));
+    }
+}

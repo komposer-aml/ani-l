@@ -15,7 +15,17 @@ It allows you to browse, search, and stream anime directly from your terminal us
 - 📺 **Streaming**: Stream episodes directly from sources like AllAnime.
 - 💾 **Library Management**: (Coming Soon) Track your watch progress.
 
-## 🛠️ Prerequisites
+## 📦 Installation
+
+### 🛠️ Prerequisites
+
+#### Installing Rust
+
+- **MacOS/Linux**: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+
+- **Windows**: Use [rustup](https://rustup.rs/)
+
+#### Installing `mpv`
 
 **You must have `mpv` installed on your system.** `ani-l` delegates video playback to it.
 
@@ -23,12 +33,25 @@ It allows you to browse, search, and stream anime directly from your terminal us
 - **Linux (Debian/Ubuntu)**: `sudo apt install mpv`
 - **Windows**: [Download mpv](https://mpv.io/installation/) and ensure it is in your System PATH.
 
-## 📦 Installation
-
-Ensure you have Rust and Cargo installed. Then run:
+#### Option A: Install from Crates.io (Recommended)
 
 ```bash
 cargo install ani-l
+```
+
+#### Option B: Build from Source
+
+Clone the repository:
+
+```bash
+git clone [https://github.com/komposer-aml/ani-l.git](https://github.com/komposer-aml/ani-l.git)
+cd ani-l
+```
+
+Build and install:
+
+```bash
+cargo install --path .
 ```
 
 ## 🚀 Usage

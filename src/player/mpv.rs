@@ -12,7 +12,9 @@ pub struct MpvPlayer;
 impl Player for MpvPlayer {
     async fn play(&self, options: PlayOptions, navigator: Option<EpisodeNavigator>) -> Result<f64> {
         let socket_id = rand::random::<u32>();
-        let socket_path = format!("/tmp/ani-l-mpv-{}.sock", socket_id);
+        let mut socket_path = std::env::temp_dir();
+        socket_path.push(format!("ani-l-mpv-{}.sock", socket_id));
+        let socket_path = socket_path.to_string_lossy().to_string();
 
         let mut cmd = Command::new("mpv");
         cmd.arg("--force-window=yes")

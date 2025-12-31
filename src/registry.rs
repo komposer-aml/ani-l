@@ -76,3 +76,49 @@ impl RegistryManager {
         self.data.entries.get(&id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_registry_entry_creation() {
+        let now = Utc::now();
+        let entry = RegistryEntry {
+            id: 12345,
+            title: "Test Anime".to_string(),
+            status: WatchStatus::CURRENT,
+            progress: 5,
+            total_episodes: Some(12),
+            score: 85.5,
+            last_updated: now,
+            dirty: true,
+        };
+
+        assert_eq!(entry.id, 12345);
+        assert_eq!(entry.progress, 5);
+        matches!(entry.status, WatchStatus::CURRENT);
+    }
+
+    #[test]
+    fn test_registry_manager_in_memory() {
+        // We simulate a registry without writing to disk
+        let mut registry = Registry::default();
+
+        let entry = RegistryEntry {
+            id: 1,
+            title: "One Piece".to_string(),
+            status: WatchStatus::PLANNING,
+            progress: 0,
+            total_episodes: None,
+            score: 0.0,
+            last_updated: Utc::now(),
+            dirty: false,
+        };
+
+        registry.entries.insert(entry.id, entry.clone());
+
+        assert!(registry.entries.contains_key(&1));
+        assert_eq!(registry.entries.get(&1).unwrap().title, "One Piece");
+    }
+}

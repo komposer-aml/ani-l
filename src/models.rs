@@ -106,3 +106,77 @@ impl Media {
             .unwrap_or("Unknown Title")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_media_preferred_title() {
+        // Case 1: English title exists
+        let m1 = Media {
+            id: 1,
+            title: MediaTitle {
+                english: Some("Naruto".into()),
+                romaji: Some("Naruto".into()),
+                native: None,
+            },
+            cover_image: None,
+            episodes: None,
+            description: None,
+            average_score: None,
+            genres: vec![],
+            studios: None,
+            trailer: None,
+        };
+        assert_eq!(m1.preferred_title(), "Naruto");
+
+        // Case 2: Only Romaji exists
+        let m2 = Media {
+            id: 2,
+            title: MediaTitle {
+                english: None,
+                romaji: Some("Shingeki no Kyojin".into()),
+                native: None,
+            },
+            cover_image: None,
+            episodes: None,
+            description: None,
+            average_score: None,
+            genres: vec![],
+            studios: None,
+            trailer: None,
+        };
+        assert_eq!(m2.preferred_title(), "Shingeki no Kyojin");
+    }
+
+    #[test]
+    fn test_anilist_response_deserialization() {
+        let json_data = json!({
+            "data": {
+                "Page": {
+                    "pageInfo": {
+                        "total": 100,
+                        "currentPage": 1,
+                        "hasNextPage": true
+                    },
+                    "media": [
+                        {
+                            "id": 1,
+                            "title": { "english": "Cowboy Bebop" },
+                            "genres": ["Action", "Sci-Fi"]
+                        }
+                    ]
+                }
+            }
+        });
+
+        let response: AniListResponse =
+            serde_json::from_value(json_data).expect("Failed to deserialize mock AniList response");
+
+        let page = response.data.page.unwrap();
+        assert_eq!(page.media.len(), 1);
+        assert_eq!(page.media[0].preferred_title(), "Cowboy Bebop");
+    }
+}
