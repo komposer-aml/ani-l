@@ -11,11 +11,6 @@ use tokio::time::sleep;
 
 pub struct MpvPlayer;
 
-#[derive(Serialize)]
-struct IpcCommand {
-    command: Vec<serde_json::Value>,
-}
-
 impl Player for MpvPlayer {
     async fn play(&self, options: PlayOptions, navigator: Option<EpisodeNavigator>) -> Result<f64> {
         // 1. Setup Socket Path
@@ -47,6 +42,12 @@ impl Player for MpvPlayer {
             cmd.arg(format!("--start={}", start));
         }
 
+        if let Some(subtitles) = &options.subtitles {
+            for sub in subtitles {
+                cmd.arg(format!("--sub-file={}", sub));
+            }
+        }
+
         cmd.arg(&options.url);
 
         println!("▶️  Starting MPV (IPC)...");
@@ -67,7 +68,7 @@ impl Player for MpvPlayer {
 
         if let Some(stream) = stream {
             let (reader, mut writer) = stream.into_split();
-            let mut buf_reader = BufReader::new(reader);
+            let buf_reader = BufReader::new(reader);
             let mut lines = buf_reader.lines();
 
             // --- KEY BINDINGS ---
@@ -104,11 +105,11 @@ impl Player for MpvPlayer {
                     line = lines.next_line() => {
                         match line {
                             Ok(Some(msg)) => {
-                                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&msg) {
-                                    if let Some(event) = val.get("event").and_then(|e| e.as_str()) {
+                                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&msg)
+                                    && let Some(event) = val.get("event").and_then(|e| e.as_str()) {
                                         if event == "client-message" {
-                                            if let Some(args) = val.get("args").and_then(|a| a.as_array()) {
-                                                if !args.is_empty() {
+                                            if let Some(args) = val.get("args").and_then(|a| a.as_array())
+                                                && !args.is_empty() {
                                                     // Parse action
                                                     let action = match args[0].as_str() {
                                                         Some("next-episode") => Some(EpisodeAction::Next),
@@ -156,18 +157,12 @@ impl Player for MpvPlayer {
                                                         }
                                                     }
                                                 }
-                                            }
-                                        } else if event == "property-change" {
-                                            if let Some(name) = val.get("name").and_then(|n| n.as_str()) {
-                                                if name == "percent-pos" {
-                                                    if let Some(p) = val.get("data").and_then(|d| d.as_f64()) {
-                                                        if p > max_percentage { max_percentage = p; }
-                                                    }
-                                                }
-                                            }
-                                        }
+                                        } else if event == "property-change"
+                                            && let Some(name) = val.get("name").and_then(|n| n.as_str())
+                                                && name == "percent-pos"
+                                                    && let Some(p) = val.get("data").and_then(|d| d.as_f64())
+                                                        && p > max_percentage { max_percentage = p; }
                                     }
-                                }
                             }
                             Ok(None) => break,
                             Err(_) => break,

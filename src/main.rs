@@ -593,7 +593,7 @@ async fn resolve_stream_for_episode(
 
 async fn perform_watch(
     query: String,
-    mut episode: String,
+    episode: String,
     anilist_id: Option<i32>,
     config: &ConfigManager,
 ) -> anyhow::Result<()> {
