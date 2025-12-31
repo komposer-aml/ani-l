@@ -17,5 +17,5 @@ A terminal-based anime library and streamer.
 1. Ensure you have Rust and Cargo installed. If not, install them from [rustup.rs](https://rustup.rs/).
 2. Run the following command to download, build, and install ani-l:
    ```bash
-   cargo install --git https://github.com/komposer-aml/ani-l.git
+   cargo install ani-l
    ```
