@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum WatchStatus {
     CURRENT,
@@ -35,7 +36,9 @@ pub struct Registry {
 }
 
 pub struct RegistryManager {
+    #[allow(dead_code)]
     file_path: PathBuf,
+    #[allow(dead_code)]
     pub data: Registry,
 }
 
@@ -55,17 +58,20 @@ impl RegistryManager {
         Ok(Self { file_path, data })
     }
 
+    #[allow(dead_code)]
     pub fn save(&self) -> Result<()> {
         let json_str = serde_json::to_string_pretty(&self.data)?;
         fs::write(&self.file_path, json_str)?;
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn update_entry(&mut self, entry: RegistryEntry) -> Result<()> {
         self.data.entries.insert(entry.id, entry);
         self.save()
     }
 
+    #[allow(dead_code)]
     pub fn get_entry(&self, id: i32) -> Option<&RegistryEntry> {
         self.data.entries.get(&id)
     }

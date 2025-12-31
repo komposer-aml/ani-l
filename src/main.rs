@@ -237,7 +237,6 @@ async fn run_tui(_config: ConfigManager) -> anyhow::Result<()> {
                         _ => {}
                     },
                     Focus::List => match code {
-                        // Standard Nav
                         KeyCode::Char('j') | KeyCode::Down => {
                             app.next();
                             update_preview(&mut app);
@@ -246,7 +245,6 @@ async fn run_tui(_config: ConfigManager) -> anyhow::Result<()> {
                             app.previous();
                             update_preview(&mut app);
                         }
-                        // Fast Nav (Jump 10)
                         KeyCode::Char('J') | KeyCode::PageDown => {
                             app.jump_forward(10);
                             update_preview(&mut app);
@@ -284,7 +282,6 @@ async fn run_tui(_config: ConfigManager) -> anyhow::Result<()> {
 }
 
 fn update_preview(app: &mut App) {
-    // Only update preview if browsing media lists, not static menus
     if matches!(
         app.list_mode,
         ListMode::SearchResults | ListMode::AnimeList(_)
@@ -369,7 +366,7 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
             if let Some(media) = app.active_media.clone() {
                 match action {
                     "▶️  Stream (Resume)" => {
-                        suspend_and_watch(terminal, &media.preferred_title(), "1").await;
+                        suspend_and_watch(terminal, media.preferred_title(), "1").await;
                     }
                     "📺 Episodes" => {
                         app.go_to_mode(ListMode::EpisodeSelect, true);
@@ -403,14 +400,13 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
         ListMode::EpisodeSelect => {
             let episode_num = (app.get_selected_index() + 1).to_string();
             if let Some(media) = app.active_media.clone() {
-                suspend_and_watch(terminal, &media.preferred_title(), &episode_num).await;
+                suspend_and_watch(terminal, media.preferred_title(), &episode_num).await;
             }
         }
         _ => {}
     }
 }
 
-// ... (suspend_and_watch and perform_watch functions remain exactly as before) ...
 async fn suspend_and_watch<B: ratatui::backend::Backend + std::io::Write>(
     terminal: &mut Terminal<B>,
     query: &str,
@@ -445,7 +441,6 @@ async fn suspend_and_watch<B: ratatui::backend::Backend + std::io::Write>(
 }
 
 async fn perform_watch(query: String, episode: String) -> anyhow::Result<()> {
-    // ... (Use same logic as provided in previous turns) ...
     let provider = AllAnimeProvider::new();
     println!("🔎 Searching AllAnime for '{}'...", query);
 

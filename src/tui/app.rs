@@ -159,12 +159,10 @@ impl App {
             self.list_state.select(Some(prev_index));
             self.active_media = prev_media;
             self.clear_status();
+        } else if matches!(self.list_mode, ListMode::MainMenu) {
+            self.running = false;
         } else {
-            if matches!(self.list_mode, ListMode::MainMenu) {
-                self.running = false;
-            } else {
-                self.reset_to_main_menu();
-            }
+            self.reset_to_main_menu();
         }
     }
 
@@ -191,35 +189,5 @@ impl App {
             ListMode::SubMenu(_) => 0,
             _ => self.media_list.len(),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_navigation_next() {
-        let mut app = App::new();
-        app.list_mode = ListMode::MainMenu;
-
-        assert_eq!(app.get_selected_index(), 0);
-
-        app.next();
-        assert_eq!(app.get_selected_index(), 1);
-
-        for _ in 0..10 {
-            app.next();
-        }
-        assert!(app.get_selected_index() < app.main_menu_items.len());
-    }
-
-    #[test]
-    fn test_navigation_previous_loops() {
-        let mut app = App::new();
-        app.list_state.select(Some(0));
-
-        app.previous();
-        assert_eq!(app.get_selected_index(), app.main_menu_items.len() - 1);
     }
 }

@@ -9,7 +9,6 @@ homepage = "https://github.com/komposer-aml/ani-l"
 keywords = ["anime", "tui", "terminal", "streamer"]
 categories = ["command-line-utilities", "multimedia::video"]
 license = "LGPL-2.1-only"
-license-file = "LICENSE"
 readme = "README.md"
 
 [dependencies]

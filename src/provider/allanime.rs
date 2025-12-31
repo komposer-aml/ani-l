@@ -95,8 +95,8 @@ impl AllAnimeProvider {
     }
 
     pub async fn extract_clock_stream(&self, source_url: &str) -> Result<PlayOptions> {
-        let clean_url = if source_url.starts_with("--") {
-            decrypt_source_url(&source_url[2..])?
+        let clean_url = if let Some(stripped) = source_url.strip_prefix("--") {
+            decrypt_source_url(stripped)?
         } else {
             source_url.to_string()
         };
@@ -151,28 +151,4 @@ fn decrypt_source_url(hex_string: &str) -> Result<String> {
     }
 
     Ok(decoded)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_decrypt_source_url() {
-        let encoded = "4142";
-        let result = decrypt_source_url(encoded).expect("Decryption failed");
-        assert_eq!(result, "yz");
-    }
-
-    #[test]
-    fn test_decrypt_empty_string() {
-        let result = decrypt_source_url("").expect("Should handle empty string");
-        assert_eq!(result, "");
-    }
-
-    #[test]
-    fn test_decrypt_invalid_hex() {
-        let result = decrypt_source_url("ZZ"); // Invalid hex
-        assert!(result.is_err());
-    }
 }

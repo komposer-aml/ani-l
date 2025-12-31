@@ -7,6 +7,7 @@ pub struct PlayOptions {
     pub title: Option<String>,
     pub start_time: Option<String>,
     pub headers: Option<HashMap<String, String>>,
+    #[allow(dead_code)]
     pub subtitles: Option<Vec<String>>,
 }
 

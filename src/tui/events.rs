@@ -9,15 +9,14 @@ pub enum TuiEvent {
 }
 
 pub fn handle_input() -> Result<TuiEvent> {
-    if event::poll(Duration::from_millis(16))? {
-        if let Event::Key(key) = event::read()? {
-            if key.kind == KeyEventKind::Press {
-                return match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => Ok(TuiEvent::Quit),
-                    code => Ok(TuiEvent::Key(code)),
-                };
-            }
-        }
+    if event::poll(Duration::from_millis(16))?
+        && let Event::Key(key) = event::read()?
+        && key.kind == KeyEventKind::Press
+    {
+        return match key.code {
+            KeyCode::Char('q') | KeyCode::Esc => Ok(TuiEvent::Quit),
+            code => Ok(TuiEvent::Key(code)),
+        };
     }
     Ok(TuiEvent::Tick)
 }

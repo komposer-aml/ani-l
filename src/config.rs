@@ -46,9 +46,13 @@ impl Default for Config {
 }
 
 pub struct ConfigManager {
+    #[allow(dead_code)]
     pub config_path: PathBuf,
+    #[allow(dead_code)]
     auth_path: PathBuf,
+    #[allow(dead_code)]
     pub config: Config,
+    #[allow(dead_code)]
     pub auth: AuthConfig,
 }
 
@@ -80,11 +84,10 @@ impl ConfigManager {
                 username: None,
             })
         } else {
-            let default_auth = AuthConfig {
+            AuthConfig {
                 anilist_token: None,
                 username: None,
-            };
-            default_auth
+            }
         };
 
         Ok(Self {
@@ -95,6 +98,7 @@ impl ConfigManager {
         })
     }
 
+    #[allow(dead_code)]
     pub fn save_auth(&self) -> Result<()> {
         let toml_str = toml::to_string_pretty(&self.auth)?;
         fs::write(&self.auth_path, toml_str)?;
