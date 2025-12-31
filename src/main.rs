@@ -352,7 +352,6 @@ async fn run_tui(config: ConfigManager) -> anyhow::Result<()> {
         }
     }
 
-    // Fully disable raw mode and cleanup on exit
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
@@ -548,14 +547,11 @@ async fn suspend_and_watch<B: ratatui::backend::Backend + std::io::Write>(
     anilist_id: Option<i32>,
     config: &ConfigManager,
 ) {
-    // 1. Suspend TUI: Clean up terminal state completely
-    // We use std::io::stdout directly to ensure immediate effect
     let _ = disable_raw_mode();
     let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
     let _ = terminal.show_cursor();
-    let _ = io::stdout().flush(); // Force flush
+    let _ = io::stdout().flush();
 
-    // 2. Run external process
     println!("▶️  Starting Playback: {} Episode {}...", query, ep);
     if let Err(e) = perform_watch(query.to_string(), ep.to_string(), anilist_id, config).await {
         println!("❌ Error: {}", e);
@@ -564,12 +560,10 @@ async fn suspend_and_watch<B: ratatui::backend::Backend + std::io::Write>(
         io::stdin().read_line(&mut s).unwrap();
     }
 
-    // 3. Restore TUI: Re-enable everything
     let _ = enable_raw_mode();
     let _ = execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture);
     let _ = terminal.hide_cursor();
     let _ = terminal.clear();
-    // No need to explicitly redraw here, the main loop will trigger draw() on next tick
 }
 
 async fn resolve_stream_for_episode(
@@ -612,7 +606,6 @@ async fn perform_watch(
         let show_name = show.name.clone();
         let provider_clone = provider.clone();
 
-        // Initial Resolution
         println!("📺 Fetching Episode {}...", episode);
         if let Some(options) =
             resolve_stream_for_episode(&provider, &show_id, &show_name, &episode).await?
@@ -634,7 +627,7 @@ async fn perform_watch(
 
                     Box::pin(async move {
                         let mut num = ep_store.lock().await;
-                        *num += 1; // Increment
+                        *num += 1;
                         let next_ep_str = num.to_string();
                         resolve_stream_for_episode(&p, &s_id, &s_name, &next_ep_str).await
                     })
@@ -655,18 +648,19 @@ async fn perform_watch(
                             &config.auth.anilist_token,
                             &config.auth.username,
                             anilist_id,
-                        ) {
-                            let current_progress = api::get_user_progress(token, id, username)
-                                .await?
-                                .unwrap_or(0);
-                            if final_ep_num > current_progress {
-                                println!(
-                                    "📝 Updating AniList progress to Episode {}...",
-                                    final_ep_num
-                                );
-                                api::update_user_entry(token, id, final_ep_num, "CURRENT").await?;
-                            }
+                        )
+                    {
+                        let current_progress = api::get_user_progress(token, id, username)
+                            .await?
+                            .unwrap_or(0);
+                        if final_ep_num > current_progress {
+                            println!(
+                                "📝 Updating AniList progress to Episode {}...",
+                                final_ep_num
+                            );
+                            api::update_user_entry(token, id, final_ep_num, "CURRENT").await?;
                         }
+                    }
                 }
                 Err(e) => eprintln!("Player error: {}", e),
             }
