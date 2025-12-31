@@ -92,9 +92,9 @@ impl Player for MpvPlayer {
                     line = lines.next_line() => {
                         match line {
                             Ok(Some(msg)) => {
-                                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&msg) {
+                                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&msg)
 
-                                    if let Some(event) = val.get("event").and_then(|e| e.as_str()) {
+                                    && let Some(event) = val.get("event").and_then(|e| e.as_str()) {
                                         if event == "client-message" {
                                             if let Some(args) = val.get("args").and_then(|a| a.as_array())
                                                 && !args.is_empty() && args[0] == "next-episode"
@@ -135,7 +135,6 @@ impl Player for MpvPlayer {
                                                     && let Some(p) = val.get("data").and_then(|d| d.as_f64())
                                                         && p > max_percentage { max_percentage = p; }
                                     }
-                                }
                             }
                             Ok(None) => break,
                             Err(_) => break,
