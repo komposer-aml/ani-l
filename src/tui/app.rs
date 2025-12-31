@@ -23,12 +23,10 @@ pub struct App {
     pub focus: Focus,
     pub list_mode: ListMode,
 
-    // HISTORY: We store the index (usize) to restore it later
     pub history_stack: Vec<(ListMode, usize, Option<Media>)>,
 
     pub search_query: String,
 
-    // STATEFUL LIST: Handles scrolling automatically
     pub list_state: ListState,
 
     pub main_menu_items: Vec<&'static str>,
@@ -96,8 +94,6 @@ impl App {
         self.status_message = None;
     }
 
-    // --- NAVIGATION HELPERS ---
-
     pub fn get_selected_index(&self) -> usize {
         self.list_state.selected().unwrap_or(0)
     }
@@ -142,8 +138,6 @@ impl App {
         let next = current.saturating_sub(amount);
         self.list_state.select(Some(next));
     }
-
-    // --- MODE SWITCHING ---
 
     pub fn go_to_mode(&mut self, mode: ListMode, reset_index: bool) {
         let current_index = self.get_selected_index();
@@ -197,5 +191,35 @@ impl App {
             ListMode::SubMenu(_) => 0,
             _ => self.media_list.len(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_navigation_next() {
+        let mut app = App::new();
+        app.list_mode = ListMode::MainMenu;
+
+        assert_eq!(app.get_selected_index(), 0);
+
+        app.next();
+        assert_eq!(app.get_selected_index(), 1);
+
+        for _ in 0..10 {
+            app.next();
+        }
+        assert!(app.get_selected_index() < app.main_menu_items.len());
+    }
+
+    #[test]
+    fn test_navigation_previous_loops() {
+        let mut app = App::new();
+        app.list_state.select(Some(0));
+
+        app.previous();
+        assert_eq!(app.get_selected_index(), app.main_menu_items.len() - 1);
     }
 }
