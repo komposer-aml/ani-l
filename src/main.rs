@@ -228,7 +228,7 @@ async fn main() -> anyhow::Result<()> {
                 title,
                 ..Default::default()
             };
-            // Interactive player via CLI doesn't support next/prev logic yet
+
             if let Err(e) = player.play(options, None).await {
                 eprintln!("❌ Playback failed: {}", e);
             }

@@ -1,4 +1,3 @@
-// src/player/mpv.rs
 use super::traits::{EpisodeAction, EpisodeNavigator, PlayOptions, Player};
 use anyhow::{Context, Result};
 use serde_json::json;
@@ -12,11 +11,9 @@ pub struct MpvPlayer;
 
 impl Player for MpvPlayer {
     async fn play(&self, options: PlayOptions, navigator: Option<EpisodeNavigator>) -> Result<f64> {
-        // 1. Setup Socket Path
         let socket_id = rand::random::<u32>();
         let socket_path = format!("/tmp/ani-l-mpv-{}.sock", socket_id);
 
-        // 2. Spawn MPV
         let mut cmd = Command::new("mpv");
         cmd.arg("--force-window=yes")
             .arg("--keep-open=yes")
@@ -52,7 +49,6 @@ impl Player for MpvPlayer {
         println!("▶️  Starting MPV (IPC)...");
         let mut child = cmd.spawn().context("Failed to spawn MPV")?;
 
-        // 3. Connect to IPC (Retry loop)
         let mut stream = None;
         for _ in 0..20 {
             if let Ok(s) = UnixStream::connect(&socket_path).await {
@@ -70,9 +66,6 @@ impl Player for MpvPlayer {
             let buf_reader = BufReader::new(reader);
             let mut lines = buf_reader.lines();
 
-            // --- KEY BINDINGS ---
-            // FIX: Combine script-message and arg into ONE string, just like 'viu' does.
-            // Also use lowercase 'shift+n' which is standard MPV syntax.
             let bindings = [
                 ("shift+n", "script-message next-episode"),
                 ("N", "script-message next-episode"),
@@ -81,13 +74,11 @@ impl Player for MpvPlayer {
             ];
 
             for (key, cmd_str) in bindings {
-                // Correct format: ["keybind", "key", "command string"]
                 let cmd = json!({ "command": ["keybind", key, cmd_str] });
                 let _ = writer.write_all(cmd.to_string().as_bytes()).await;
                 let _ = writer.write_all(b"\n").await;
             }
             let _ = writer.flush().await;
-            // --------------------
 
             let observe_cmd = json!({ "command": ["observe_property", 1, "percent-pos"] });
             let _ = writer.write_all(observe_cmd.to_string().as_bytes()).await;
@@ -109,7 +100,7 @@ impl Player for MpvPlayer {
                                         if event == "client-message" {
                                             if let Some(args) = val.get("args").and_then(|a| a.as_array())
                                                 && !args.is_empty() {
-                                                    // Parse action
+
                                                     let action = match args[0].as_str() {
                                                         Some("next-episode") => Some(EpisodeAction::Next),
                                                         Some("previous-episode") => Some(EpisodeAction::Previous),
@@ -122,7 +113,7 @@ impl Player for MpvPlayer {
                                                             EpisodeAction::Previous => "Previous",
                                                         };
 
-                                                        // Show loading OSD
+
                                                         let _ = writer.write_all(json!({ "command": ["show-text", format!("Fetching {} Episode...", label), "5000"] }).to_string().as_bytes()).await;
                                                         let _ = writer.write_all(b"\n").await;
                                                         let _ = writer.flush().await;
@@ -139,7 +130,6 @@ impl Player for MpvPlayer {
                                                                     let _ = writer.write_all(b"\n").await;
                                                                 }
 
-                                                                // Reset percentage for the new episode
                                                                 max_percentage = 0.0;
                                                                 let _ = writer.flush().await;
                                                             }
