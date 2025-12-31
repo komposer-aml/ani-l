@@ -1,7 +1,6 @@
 // src/player/mpv.rs
 use super::traits::{EpisodeAction, EpisodeNavigator, PlayOptions, Player};
 use anyhow::{Context, Result};
-use serde::Serialize;
 use serde_json::json;
 use std::process::Command;
 use std::time::Duration;
