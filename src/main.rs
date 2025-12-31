@@ -597,7 +597,7 @@ async fn resolve_stream_for_episode(
 
 async fn perform_watch(
     query: String,
-    mut episode: String,
+    episode: String,
     anilist_id: Option<i32>,
     config: &ConfigManager,
 ) -> anyhow::Result<()> {
@@ -650,8 +650,8 @@ async fn perform_watch(
                     let final_ep_num = *current_ep_num.lock().await;
                     let required_percentage = config.config.stream.episode_complete_at as f64;
 
-                    if percentage >= required_percentage {
-                        if let (Some(token), Some(username), Some(id)) = (
+                    if percentage >= required_percentage
+                        && let (Some(token), Some(username), Some(id)) = (
                             &config.auth.anilist_token,
                             &config.auth.username,
                             anilist_id,
@@ -667,7 +667,6 @@ async fn perform_watch(
                                 api::update_user_entry(token, id, final_ep_num, "CURRENT").await?;
                             }
                         }
-                    }
                 }
                 Err(e) => eprintln!("Player error: {}", e),
             }

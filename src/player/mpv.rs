@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use super::traits::{NextEpisodeResolver, PlayOptions, Player};
 use anyhow::{Context, Result};
 use serde::Serialize;
@@ -72,7 +73,7 @@ impl Player for MpvPlayer {
         if let Some(stream) = stream {
             // 4. Setup IPC environment
             let (reader, mut writer) = stream.into_split();
-            let mut buf_reader = BufReader::new(reader);
+            let buf_reader = BufReader::new(reader);
             let mut lines = buf_reader.lines();
 
             // Bind Shift+N to a script message
@@ -103,9 +104,9 @@ impl Player for MpvPlayer {
                                     // Handle Events
                                     if let Some(event) = val.get("event").and_then(|e| e.as_str()) {
                                         if event == "client-message" {
-                                            if let Some(args) = val.get("args").and_then(|a| a.as_array()) {
-                                                if !args.is_empty() && args[0] == "next-episode" {
-                                                     if let Some(resolver) = &next_resolver {
+                                            if let Some(args) = val.get("args").and_then(|a| a.as_array())
+                                                && !args.is_empty() && args[0] == "next-episode"
+                                                     && let Some(resolver) = &next_resolver {
                                                          println!("\n⏭️  Fetching Next Episode...");
                                                          let _ = writer.write_all(json!({ "command": ["show-text", "Fetching Next Episode..."] }).to_string().as_bytes()).await;
                                                          let _ = writer.write_all(b"\n").await;
@@ -136,17 +137,11 @@ impl Player for MpvPlayer {
                                                              }
                                                          }
                                                      }
-                                                }
-                                            }
-                                        } else if event == "property-change" {
-                                            if let Some(name) = val.get("name").and_then(|n| n.as_str()) {
-                                                if name == "percent-pos" {
-                                                    if let Some(p) = val.get("data").and_then(|d| d.as_f64()) {
-                                                        if p > max_percentage { max_percentage = p; }
-                                                    }
-                                                }
-                                            }
-                                        }
+                                        } else if event == "property-change"
+                                            && let Some(name) = val.get("name").and_then(|n| n.as_str())
+                                                && name == "percent-pos"
+                                                    && let Some(p) = val.get("data").and_then(|d| d.as_f64())
+                                                        && p > max_percentage { max_percentage = p; }
                                     }
                                 }
                             }
