@@ -1,0 +1,201 @@
+use crate::models::Media;
+use ratatui::widgets::ListState;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Focus {
+    SearchBar,
+    List,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ListMode {
+    MainMenu,
+    SearchResults,
+    AnimeList(String),
+    AnimeActions,
+    EpisodeSelect,
+    SubMenu(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct App {
+    pub running: bool,
+    pub focus: Focus,
+    pub list_mode: ListMode,
+
+    // HISTORY: We store the index (usize) to restore it later
+    pub history_stack: Vec<(ListMode, usize, Option<Media>)>,
+
+    pub search_query: String,
+
+    // STATEFUL LIST: Handles scrolling automatically
+    pub list_state: ListState,
+
+    pub main_menu_items: Vec<&'static str>,
+    pub anime_action_items: Vec<&'static str>,
+
+    pub media_list: Vec<Media>,
+
+    pub cube_angle: f64,
+    pub active_media: Option<Media>,
+
+    pub status_message: Option<String>,
+    pub is_loading: bool,
+}
+
+impl App {
+    pub fn new() -> Self {
+        let mut list_state = ListState::default();
+        list_state.select(Some(0));
+
+        Self {
+            running: true,
+            focus: Focus::List,
+            list_mode: ListMode::MainMenu,
+            history_stack: Vec::new(),
+            search_query: String::new(),
+            list_state,
+            main_menu_items: vec![
+                "🔥 Trending",
+                "✨ Popular",
+                "💯 Top Scored",
+                "🔔 Recently Updated",
+                "🎲 Random",
+                "❌ Exit",
+            ],
+            anime_action_items: vec![
+                "▶️  Stream (Resume)",
+                "📺 Episodes",
+                "🎞️  Watch Trailer",
+                "📝 View Reviews",
+                "📅 Airing Schedule",
+                "👥 Characters",
+                "🔗 Related Anime",
+                "💡 Recommendations",
+            ],
+            media_list: vec![],
+            cube_angle: 0.0,
+            active_media: None,
+            status_message: None,
+            is_loading: false,
+        }
+    }
+
+    pub fn on_tick(&mut self) {
+        self.cube_angle += 0.02;
+        if self.cube_angle > 360.0 {
+            self.cube_angle = 0.0;
+        }
+    }
+
+    pub fn set_status<S: Into<String>>(&mut self, msg: S) {
+        self.status_message = Some(msg.into());
+    }
+
+    pub fn clear_status(&mut self) {
+        self.status_message = None;
+    }
+
+    // --- NAVIGATION HELPERS ---
+
+    pub fn get_selected_index(&self) -> usize {
+        self.list_state.selected().unwrap_or(0)
+    }
+
+    pub fn next(&mut self) {
+        let i = match self.list_state.selected() {
+            Some(i) => {
+                if i >= self.list_len() - 1 {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+            None => 0,
+        };
+        self.list_state.select(Some(i));
+    }
+
+    pub fn previous(&mut self) {
+        let i = match self.list_state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    self.list_len().saturating_sub(1)
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.list_state.select(Some(i));
+    }
+
+    pub fn jump_forward(&mut self, amount: usize) {
+        let current = self.get_selected_index();
+        let max = self.list_len().saturating_sub(1);
+        let next = std::cmp::min(current + amount, max);
+        self.list_state.select(Some(next));
+    }
+
+    pub fn jump_backward(&mut self, amount: usize) {
+        let current = self.get_selected_index();
+        let next = current.saturating_sub(amount);
+        self.list_state.select(Some(next));
+    }
+
+    // --- MODE SWITCHING ---
+
+    pub fn go_to_mode(&mut self, mode: ListMode, reset_index: bool) {
+        let current_index = self.get_selected_index();
+        self.history_stack.push((
+            self.list_mode.clone(),
+            current_index,
+            self.active_media.clone(),
+        ));
+
+        self.list_mode = mode;
+        if reset_index {
+            self.list_state.select(Some(0));
+        }
+    }
+
+    pub fn go_back(&mut self) {
+        if let Some((prev_mode, prev_index, prev_media)) = self.history_stack.pop() {
+            self.list_mode = prev_mode;
+            self.list_state.select(Some(prev_index));
+            self.active_media = prev_media;
+            self.clear_status();
+        } else {
+            if matches!(self.list_mode, ListMode::MainMenu) {
+                self.running = false;
+            } else {
+                self.reset_to_main_menu();
+            }
+        }
+    }
+
+    pub fn reset_to_main_menu(&mut self) {
+        self.list_mode = ListMode::MainMenu;
+        self.history_stack.clear();
+        self.media_list.clear();
+        self.list_state.select(Some(0));
+        self.active_media = None;
+        self.search_query.clear();
+        self.focus = Focus::List;
+        self.clear_status();
+    }
+
+    pub fn list_len(&self) -> usize {
+        match self.list_mode {
+            ListMode::MainMenu => self.main_menu_items.len(),
+            ListMode::AnimeActions => self.anime_action_items.len(),
+            ListMode::EpisodeSelect => self
+                .active_media
+                .as_ref()
+                .and_then(|m| m.episodes)
+                .unwrap_or(100) as usize,
+            ListMode::SubMenu(_) => 0,
+            _ => self.media_list.len(),
+        }
+    }
+}
