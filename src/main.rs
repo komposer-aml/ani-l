@@ -7,10 +7,12 @@ mod provider;
 mod registry;
 mod tui;
 
+// --- i18n Setup ---
 #[macro_use]
 extern crate rust_i18n;
 
 i18n!("locales");
+// ------------------
 
 use clap::{Parser, Subcommand};
 use crossterm::{
@@ -102,6 +104,7 @@ async fn main() -> anyhow::Result<()> {
     let mut config_manager = ConfigManager::init_interactive().await?;
     let _registry_manager = RegistryManager::new()?;
 
+    // Set the locale based on config
     rust_i18n::set_locale(&config_manager.config.general.language);
 
     if let Some(proj_dirs) = ProjectDirs::from("com", "sleepy-foundry", "ani-l")
@@ -371,15 +374,16 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
             if idx >= app.main_menu_items.len() {
                 return;
             }
-
+            // Clone the item to avoid holding an immutable borrow of `app`
             let item = app.main_menu_items[idx].clone();
 
             app.set_status(format!("Loading {}...", item));
             let _ = terminal.draw(|f| tui::ui::draw(f, app));
 
-            if item == t!("main_menu.exit").to_string() {
+            // FIXED: Removed .to_string(), comparing String with Cow<str> directly
+            if item == t!("main_menu.exit") {
                 app.running = false;
-            } else if item == t!("main_menu.trending").to_string() {
+            } else if item == t!("main_menu.trending") {
                 if let Ok(res) =
                     api::fetch_media(json!({ "perPage": 20, "sort": "TRENDING_DESC" })).await
                     && let Some(page) = res.data.page
@@ -388,7 +392,7 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                     app.active_media = app.media_list.first().cloned();
                     app.go_to_mode(ListMode::AnimeList("Trending".into()), true);
                 }
-            } else if item == t!("main_menu.popular").to_string() {
+            } else if item == t!("main_menu.popular") {
                 if let Ok(res) =
                     api::fetch_media(json!({ "perPage": 20, "sort": "POPULARITY_DESC" })).await
                     && let Some(page) = res.data.page
@@ -397,7 +401,7 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                     app.active_media = app.media_list.first().cloned();
                     app.go_to_mode(ListMode::AnimeList("Popular".into()), true);
                 }
-            } else if item == t!("main_menu.random").to_string() {
+            } else if item == t!("main_menu.random") {
                 let buffer_size = 20;
                 let mut rng = thread_rng();
                 let range: Vec<i32> = (1..18000).collect();
@@ -428,11 +432,12 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
             if idx >= app.anime_action_items.len() {
                 return;
             }
-
+            // Clone the action string to release borrow
             let action = app.anime_action_items[idx].clone();
 
             if let Some(media) = app.active_media.clone() {
-                if action == t!("actions.stream").to_string() {
+                // FIXED: Removed .to_string(), comparing String with Cow<str> directly
+                if action == t!("actions.stream") {
                     let mut next_episode = "1".to_string();
 
                     if let (Some(token), Some(username)) =
@@ -481,9 +486,9 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                     )
                     .await;
                     app.clear_status();
-                } else if action == t!("actions.episodes").to_string() {
+                } else if action == t!("actions.episodes") {
                     app.go_to_mode(ListMode::EpisodeSelect, true);
-                } else if action == t!("actions.trailer").to_string() {
+                } else if action == t!("actions.trailer") {
                     if let Some(trailer) = &media.trailer {
                         let site = trailer.site.as_deref().unwrap_or("youtube");
                         let id = trailer.id.as_deref().unwrap_or("");
