@@ -291,7 +291,7 @@ async fn run_tui(config: ConfigManager) -> anyhow::Result<()> {
                                     if let Some(page) = res.data.page {
                                         app.media_list = page.media;
                                         app.go_to_mode(ListMode::SearchResults, true);
-                                        app.active_media = None; // Force update_preview to trigger fetch
+                                        app.active_media = None;
                                         app.focus = Focus::List;
                                         app.clear_status();
                                         update_preview(&mut app);
@@ -408,7 +408,7 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                     && let Some(page) = res.data.page
                 {
                     app.media_list = page.media;
-                    app.active_media = None; // Force update_preview
+                    app.active_media = None;
                     app.go_to_mode(ListMode::AnimeList("Trending".into()), true);
                     update_preview(app);
                 }
@@ -418,7 +418,7 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                     && let Some(page) = res.data.page
                 {
                     app.media_list = page.media;
-                    app.active_media = None; // Force update_preview
+                    app.active_media = None;
                     app.go_to_mode(ListMode::AnimeList("Popular".into()), true);
                     update_preview(app);
                 }
@@ -435,7 +435,7 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                     && let Some(page) = res.data.page
                 {
                     app.media_list = page.media;
-                    app.active_media = None; // Force update_preview
+                    app.active_media = None;
                     app.go_to_mode(ListMode::AnimeList("Random".into()), true);
                     update_preview(app);
                 }

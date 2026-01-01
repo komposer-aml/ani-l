@@ -52,7 +52,7 @@ dependencies = [
 
 [[package]]
 name = "ani-l"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2005,9 +2005,9 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "open"
-version = "4.2.0"
+version = "5.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a083c0c7e5e4a8ec4176346cf61f67ac674e8bfb059d9226e1c54a96b377c12"
+checksum = "43bb73a7fa3799b198970490a51174027ba0d4ec504b03cd08caf513d40024bc"
 dependencies = [
  "is-wsl",
  "libc",
@@ -2595,7 +2595,6 @@ dependencies = [
  "base64-simd",
  "icy_sixel",
  "image",
- "pkg-config",
  "rand 0.8.5",
  "ratatui",
  "rustix 0.38.44",
