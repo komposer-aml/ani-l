@@ -1,7 +1,7 @@
 use crate::player::traits::PlayOptions;
 use crate::provider::models::*;
 use anyhow::{Context, Result};
-use log::{debug, info, warn};
+use log::{debug, warn};
 use reqwest::{Client, header};
 use serde_json::json;
 use urlencoding::encode;

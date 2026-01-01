@@ -14,7 +14,7 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use directories::ProjectDirs;
-use log::{debug, error, info};
+use log::{debug, info};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use ratatui::{Terminal, backend::CrosstermBackend};
@@ -103,14 +103,12 @@ async fn main() -> anyhow::Result<()> {
     if let Some(proj_dirs) = ProjectDirs::from("com", "sleepy-foundry", "ani-l")
         && std::env::args().len() > 1
         && !std::env::args().any(|a| a == "tui")
-    {
-        if cli.verbose {
+        && cli.verbose {
             println!(
                 "📂 Configuration & Registry loaded from: {:?}",
                 proj_dirs.config_dir()
             );
         }
-    }
 
     let command = cli.command.unwrap_or(Commands::Tui);
 
