@@ -14,6 +14,7 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use directories::ProjectDirs;
+use log::{debug, error, info};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use ratatui::{Terminal, backend::CrosstermBackend};
@@ -38,6 +39,9 @@ const ANILIST_AUTH_URL: &str =
 #[command(name = "ani-l")]
 #[command(about = "Terminal Anime Library & Streamer", long_about = None)]
 struct Cli {
+    #[arg(short, long, global = true)]
+    verbose: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -86,6 +90,13 @@ enum SearchMode {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+
+    if cli.verbose {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
+        debug!("Verbose mode enabled");
+    }
+
     let mut config_manager = ConfigManager::new()?;
     let _registry_manager = RegistryManager::new()?;
 
@@ -93,13 +104,14 @@ async fn main() -> anyhow::Result<()> {
         && std::env::args().len() > 1
         && !std::env::args().any(|a| a == "tui")
     {
-        println!(
-            "📂 Configuration & Registry loaded from: {:?}",
-            proj_dirs.config_dir()
-        );
+        if cli.verbose {
+            println!(
+                "📂 Configuration & Registry loaded from: {:?}",
+                proj_dirs.config_dir()
+            );
+        }
     }
 
-    let cli = Cli::parse();
     let command = cli.command.unwrap_or(Commands::Tui);
 
     match command {
@@ -608,6 +620,8 @@ async fn perform_watch(
         let name_a = normalizer::normalize("allanime", &a.name);
         let name_b = normalizer::normalize("allanime", &b.name);
 
+        debug!("Comparing: '{}' vs '{}'", name_a, name_b);
+
         let score_a = normalized_levenshtein(&name_a.to_lowercase(), &query.to_lowercase());
         let score_b = normalized_levenshtein(&name_b.to_lowercase(), &query.to_lowercase());
 
@@ -617,6 +631,7 @@ async fn perform_watch(
     });
 
     if let Some(show) = best_match {
+        info!("Selected Show: {} (ID: {})", show.name, show.id);
         println!("Found: {} (ID: {})", show.name, show.id);
 
         let show_id = show.id.clone();

@@ -1,6 +1,7 @@
 use crate::player::traits::PlayOptions;
 use crate::provider::models::*;
 use anyhow::{Context, Result};
+use log::{debug, info, warn};
 use reqwest::{Client, header};
 use serde_json::json;
 use urlencoding::encode;
@@ -27,6 +28,8 @@ impl AllAnimeProvider {
     }
 
     pub async fn search(&self, query: &str) -> Result<Vec<ShowEdge>> {
+        debug!("Searching provider for '{}'...", query);
+
         let gql = r#"
         query($search: SearchInput, $limit: Int, $page: Int, $translationType: VaildTranslationTypeEnumType, $countryOrigin: VaildCountryOriginEnumType) {
             shows(search: $search, limit: $limit, page: $page, translationType: $translationType, countryOrigin: $countryOrigin) {
@@ -45,7 +48,7 @@ impl AllAnimeProvider {
                 "allowUnknown": false,
                 "query": query
             },
-            "limit": 100,
+            "limit": 50,
             "page": 1,
             "translationType": "sub",
             "countryOrigin": "ALL"
@@ -58,8 +61,11 @@ impl AllAnimeProvider {
             encode(gql)
         );
 
+        debug!("Sending search request to: {}", API_ENDPOINT);
         let resp: AllAnimeResponse<SearchResultData> =
             self.client.get(&url).send().await?.json().await?;
+
+        debug!("Received {} results", resp.data.shows.edges.len());
         Ok(resp.data.shows.edges)
     }
 
@@ -68,6 +74,11 @@ impl AllAnimeProvider {
         show_id: &str,
         episode_num: &str,
     ) -> Result<Vec<SourceUrl>> {
+        debug!(
+            "Fetching sources for Show ID: {}, Episode: {}",
+            show_id, episode_num
+        );
+
         let gql = r#"
         query($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) {
             episode(showId: $showId, translationType: $translationType, episodeString: $episodeString) {
@@ -93,8 +104,17 @@ impl AllAnimeProvider {
             self.client.get(&url).send().await?.json().await?;
 
         match resp.data.episode {
-            Some(ep) => Ok(ep.source_urls),
-            None => anyhow::bail!("Episode {} not found for show ID {}", episode_num, show_id),
+            Some(ep) => {
+                debug!("Found {} source URLs", ep.source_urls.len());
+                Ok(ep.source_urls)
+            }
+            None => {
+                warn!(
+                    "API returned null for episode {}. It likely doesn't exist.",
+                    episode_num
+                );
+                anyhow::bail!("Episode {} not found for show ID {}", episode_num, show_id)
+            }
         }
     }
 
@@ -115,6 +135,8 @@ impl AllAnimeProvider {
             "https://allanime.day{}",
             base_path.replace("clock", "clock.json")
         );
+
+        debug!("Resolving stream from clock URL: {}", clock_url);
 
         let resp: GogoStreamResponse = self.client.get(&clock_url).send().await?.json().await?;
 

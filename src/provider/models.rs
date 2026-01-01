@@ -35,6 +35,7 @@ pub struct AvailableEpisodes {
 
 #[derive(Debug, Deserialize)]
 pub struct EpisodeResultData {
+    // FIX: Wrapped in Option to handle null API responses gracefully
     pub episode: Option<EpisodeData>,
 }
 
