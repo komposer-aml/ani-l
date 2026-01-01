@@ -22,6 +22,7 @@ pub struct GeneralConfig {
     pub provider: String,
     #[serde(default = "default_language")]
     pub language: String,
+    pub image_protocol: Option<String>,
 }
 
 fn default_language() -> String {
@@ -48,6 +49,7 @@ impl Default for Config {
             general: GeneralConfig {
                 provider: "allanime".to_string(),
                 language: "en".to_string(),
+                image_protocol: None,
             },
             stream: StreamConfig {
                 player: "mpv".to_string(),
@@ -178,6 +180,11 @@ impl ConfigManager {
             let trans = prompt(&t!("setup.translation_prompt"));
             if !trans.is_empty() {
                 config.stream.translation_type = trans;
+            }
+
+            let proto = prompt(&t!("setup.image_protocol_prompt"));
+            if !proto.is_empty() {
+                config.general.image_protocol = Some(proto);
             }
         } else {
             println!("{}", t!("setup.use_defaults"));

@@ -1,8 +1,11 @@
 use crate::models::Media;
+use crossterm::event::{self, Event, KeyCode};
 use ratatui::widgets::ListState;
-use ratatui_image::picker::Picker;
+use ratatui_image::picker::{Picker, ProtocolType};
 use ratatui_image::protocol::StatefulProtocol;
+use std::io::{self, Write};
 use std::sync::mpsc::{Receiver, Sender};
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Focus {
@@ -94,10 +97,86 @@ impl App {
         }
     }
 
-    pub fn init_image_picker(&mut self) {
-        if let Ok(picker) = Picker::from_termios() {
-            self.image_picker = Some(picker);
+    pub fn init_image_picker(&mut self, protocol: Option<String>) {
+        // 1. Determine Font Size
+        // Try ioctl first (fastest)
+        let mut font_size = Picker::from_termios()
+            .ok()
+            .map(|p| p.font_size)
+            .unwrap_or((0, 0));
+
+        // If ioctl failed (common in multiplexers), try escape sequence query
+        if font_size.0 == 0 || font_size.1 == 0 {
+            if let Ok(pixels) = self.query_terminal_pixels() {
+                if let Ok((cols, rows)) = crossterm::terminal::size() {
+                    if cols > 0 && rows > 0 {
+                        font_size = (pixels.0 / cols, pixels.1 / rows);
+                    }
+                }
+            }
         }
+
+        // Fallback if everything fails
+        if font_size.0 == 0 || font_size.1 == 0 {
+            font_size = (10, 20);
+        }
+
+        // 2. Initialize Picker
+        let mut picker = Picker::new(font_size);
+
+        // 3. Set Protocol (Auto or Forced)
+        if let Some(forced_proto) = protocol {
+            picker.protocol_type = match forced_proto.to_lowercase().as_str() {
+                "kitty" => ProtocolType::Kitty,
+                "sixel" => ProtocolType::Sixel,
+                "iterm2" => ProtocolType::Iterm2,
+                _ => ProtocolType::Halfblocks,
+            };
+        } else if let Ok(p) = Picker::from_termios() {
+            // If we didn't force it, trust the auto-detected one from termios check
+            picker.protocol_type = p.protocol_type;
+        }
+
+        self.image_picker = Some(picker);
+    }
+
+    // Helper to query terminal size in pixels via CSI 14 t
+    fn query_terminal_pixels(&self) -> anyhow::Result<(u16, u16)> {
+        let mut stdout = io::stdout();
+        write!(stdout, "\x1b[14t")?;
+        stdout.flush()?;
+
+        let mut response = String::new();
+        let start = Instant::now();
+
+        // Read response loop (timeout 500ms)
+        while start.elapsed() < Duration::from_millis(500) {
+            if event::poll(Duration::from_millis(10))? {
+                if let Event::Key(key) = event::read()? {
+                    match key.code {
+                        KeyCode::Char(c) => response.push(c),
+                        KeyCode::Esc => response.push('\x1b'),
+                        _ => {}
+                    }
+                    if response.ends_with('t') {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Parse: \x1b[4;<h>;<w>t
+        if let Some(start_idx) = response.find("\x1b[4;") {
+            let content = &response[start_idx + 4..response.len() - 1]; // skip prefix and 't'
+            let parts: Vec<&str> = content.split(';').collect();
+            if parts.len() >= 2 {
+                let h: u16 = parts[0].parse().unwrap_or(0);
+                let w: u16 = parts[1].parse().unwrap_or(0);
+                return Ok((w, h));
+            }
+        }
+
+        Err(anyhow::anyhow!("Failed to parse window size"))
     }
 
     pub fn on_tick(&mut self) {

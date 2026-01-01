@@ -43,6 +43,7 @@ setup:
   customize_prompt: "Apakah Anda ingin menyesuaikan pengaturan lainnya?"
   quality_prompt: "Kualitas Default (1080/720/480) [1080]: "
   translation_prompt: "Jenis Terjemahan (sub/dub) [sub]: "
+  image_protocol_prompt: "Protokol gambar (kitty/sixel/iterm2) [auto]: "
   use_defaults: "👍 Menggunakan pengaturan default."
   saved: "✅ Konfigurasi disimpan."
   auth_prompt: "Apakah Anda ingin mengautentikasi dengan AniList sekarang?"

@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use serde::Deserialize;
+use std::fmt;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct AniListResponse {
@@ -143,13 +144,13 @@ impl Media {
     }
 }
 
-impl ToString for FuzzyDate {
-    fn to_string(&self) -> String {
+impl fmt::Display for FuzzyDate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match (self.year, self.month, self.day) {
-            (Some(y), Some(m), Some(d)) => format!("{:04}-{:02}-{:02}", y, m, d),
-            (Some(y), Some(m), None) => format!("{:04}-{:02}", y, m),
-            (Some(y), None, None) => format!("{:04}", y),
-            _ => "?".to_string(),
+            (Some(y), Some(m), Some(d)) => write!(f, "{:04}-{:02}-{:02}", y, m, d),
+            (Some(y), Some(m), None) => write!(f, "{:04}-{:02}", y, m),
+            (Some(y), None, None) => write!(f, "{:04}", y),
+            _ => write!(f, "?"),
         }
     }
 }

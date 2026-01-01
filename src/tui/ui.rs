@@ -9,7 +9,7 @@ use ratatui::{
         canvas::{Canvas, Line as CanvasLine},
     },
 };
-use ratatui_image::StatefulImage;
+use ratatui_image::{Resize, StatefulImage};
 
 pub fn draw(f: &mut Frame, app: &mut App) {
     let main_chunks = Layout::default()
@@ -148,16 +148,22 @@ fn draw_left_panel(f: &mut Frame, area: Rect, app: &mut App) {
             .split(left_layout[0]);
 
         if let Some(protocol) = &mut app.current_cover_image {
-            let image = StatefulImage::new(None);
+            // Fix: Use .resize() builder method instead of passing Resize enum to new()
+            let image = StatefulImage::new(None).resize(Resize::Fit(None));
             f.render_stateful_widget(image, top_layout[0], protocol);
         } else {
-            let placeholder = Paragraph::new(if app.is_fetching_image {
+            let message = if app.is_fetching_image {
                 "Loading Image..."
+            } else if app.image_picker.is_none() {
+                "Terminal not supported.\nTry WezTerm, Ghostty, iTerm2 or Kitty."
             } else {
-                "No Image"
-            })
-            .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL));
+                "No Image Found"
+            };
+
+            let placeholder = Paragraph::new(message)
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: true })
+                .block(Block::default().borders(Borders::ALL));
             f.render_widget(placeholder, top_layout[0]);
         }
 
