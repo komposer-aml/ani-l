@@ -32,9 +32,6 @@ use crate::registry::RegistryManager;
 use crate::tui::app::{App, Focus, ListMode};
 use crate::tui::events::TuiEvent;
 
-const ANILIST_AUTH_URL: &str =
-    "https://anilist.co/api/v2/oauth/authorize?client_id=33837&response_type=token";
-
 #[derive(Parser)]
 #[command(name = "ani-l")]
 #[command(about = "Terminal Anime Library & Streamer", long_about = None)]
@@ -97,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
         debug!("Verbose mode enabled");
     }
 
-    let mut config_manager = ConfigManager::new()?;
+    let mut config_manager = ConfigManager::init_interactive().await?;
     let _registry_manager = RegistryManager::new()?;
 
     if let Some(proj_dirs) = ProjectDirs::from("com", "sleepy-foundry", "ani-l")
@@ -126,56 +123,21 @@ async fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
 
-            let token_to_verify = if let Some(input) = token_input {
-                let path = Path::new(&input);
-                if path.exists() && path.is_file() {
-                    println!("📂 Reading token from file: {:?}", path);
-                    std::fs::read_to_string(path)?.trim().to_string()
-                } else {
-                    input
-                }
+            if let Some(input) = token_input {
+                let token_to_verify = {
+                    let path = Path::new(&input);
+                    if path.exists() && path.is_file() {
+                        println!("📂 Reading token from file: {:?}", path);
+                        std::fs::read_to_string(path)?.trim().to_string()
+                    } else {
+                        input
+                    }
+                };
+                config_manager
+                    .verify_and_save_token(&token_to_verify)
+                    .await?;
             } else {
-                println!("🌍 Opening browser for authentication...");
-                println!("🔗 If it doesn't open, visit: {}", ANILIST_AUTH_URL);
-
-                #[cfg(target_os = "macos")]
-                let _ = std::process::Command::new("open")
-                    .arg(ANILIST_AUTH_URL)
-                    .spawn();
-                #[cfg(target_os = "linux")]
-                let _ = std::process::Command::new("xdg-open")
-                    .arg(ANILIST_AUTH_URL)
-                    .spawn();
-                #[cfg(target_os = "windows")]
-                let _ = std::process::Command::new("cmd")
-                    .arg("/C")
-                    .arg("start")
-                    .arg(ANILIST_AUTH_URL)
-                    .spawn();
-
-                print!("🔑 Paste your token here: ");
-                io::stdout().flush()?;
-                let mut input = String::new();
-                io::stdin().read_line(&mut input)?;
-                input.trim().to_string()
-            };
-
-            if token_to_verify.is_empty() {
-                println!("❌ No token provided.");
-                return Ok(());
-            }
-
-            println!("🔄 Verifying token...");
-            match api::authenticate_user(&token_to_verify).await {
-                Ok(user) => {
-                    println!("✅ Successfully logged in as: {}", user.name);
-                    config_manager.auth.anilist_token = Some(token_to_verify);
-                    config_manager.auth.username = Some(user.name);
-                    config_manager.save_auth()?;
-                }
-                Err(e) => {
-                    eprintln!("❌ Authentication failed: {}", e);
-                }
+                config_manager.authenticate_interactive().await?;
             }
         }
         Commands::Search {
