@@ -15,7 +15,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
-        .split(f.size());
+        .split(f.area());
 
     let right_chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -148,8 +148,7 @@ fn draw_left_panel(f: &mut Frame, area: Rect, app: &mut App) {
             .split(left_layout[0]);
 
         if let Some(protocol) = &mut app.current_cover_image {
-            // Fix: Use .resize() builder method instead of passing Resize enum to new()
-            let image = StatefulImage::new(None).resize(Resize::Fit(None));
+            let image = StatefulImage::new().resize(Resize::Fit(None));
             f.render_stateful_widget(image, top_layout[0], protocol);
         } else {
             let message = if app.is_fetching_image {

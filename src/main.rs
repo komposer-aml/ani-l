@@ -234,7 +234,7 @@ async fn run_tui(config: ConfigManager) -> anyhow::Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App::new();
-    app.init_image_picker(config.config.general.image_protocol.clone());
+    app.init_image_picker();
 
     loop {
         terminal.draw(|f| tui::ui::draw(f, &mut app))?;

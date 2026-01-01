@@ -43,7 +43,6 @@ setup:
   customize_prompt: "Voulez-vous personnaliser les autres paramètres ?"
   quality_prompt: "Qualité par défaut (1080/720/480) [1080] : "
   translation_prompt: "Type de traduction (sub/dub) [sub] : "
-  image_protocol_prompt: "Protocole d’image (kitty/sixel/iterm2) [auto] : "
   use_defaults: "👍 Utilisation des paramètres par défaut."
   saved: "✅ Configuration enregistrée."
   auth_prompt: "Voulez-vous vous authentifier avec AniList maintenant ?"
