@@ -8,6 +8,12 @@
 
 It allows you to browse, search, and stream anime directly from your terminal using a TUI (Text User Interface) or CLI commands.
 
+<p align="center">
+  <a href="https://discord.gg/CTkxHNvHRy">
+    <img src="http://invidget.switchblade.xyz/CTkxHNvHRy" alt="Discord Server Invite">
+  </a>
+</p>
+
 ## ✨ Features
 
 - 🖥️ **TUI Interface**: A clean, keyboard-driven interface built with `ratatui`.
