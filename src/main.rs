@@ -440,7 +440,7 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                             match api::get_user_progress(token, media.id, username).await {
                                 Ok(Some(progress)) => {
                                     let is_completed =
-                                        media.episodes.map_or(false, |total| progress >= total);
+                                        media.episodes.is_some_and(|total| progress >= total);
 
                                     if is_completed {
                                         next_episode = "1".to_string();
