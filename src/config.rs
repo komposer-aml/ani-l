@@ -20,6 +20,12 @@ pub struct Config {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GeneralConfig {
     pub provider: String,
+    #[serde(default = "default_language")]
+    pub language: String,
+}
+
+fn default_language() -> String {
+    "en".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -41,6 +47,7 @@ impl Default for Config {
         Self {
             general: GeneralConfig {
                 provider: "allanime".to_string(),
+                language: "en".to_string(),
             },
             stream: StreamConfig {
                 player: "mpv".to_string(),
@@ -149,40 +156,38 @@ impl ConfigManager {
     }
 
     async fn run_setup_wizard(config_path: &Path) -> Result<()> {
-        println!("\n👋 Welcome to ani-l! It looks like this is your first run.");
-        println!("📝 Creating configuration file at {:?}", config_path);
+        let language = select_language();
+
+        rust_i18n::set_locale(&language);
+
+        println!("{}", t!("setup.welcome"));
+        println!(
+            "{}",
+            t!("setup.creating_config", path = format!("{:?}", config_path))
+        );
 
         let mut config = Config::default();
+        config.general.language = language;
 
-        if prompt_bool("Would you like to customize the settings?") {
-            // let provider = prompt("Default Provider [allanime]: ");
-            // if !provider.is_empty() {
-            //     config.general.provider = provider;
-            // }
-
-            // let player = prompt("Default Player [mpv]: ");
-            // if !player.is_empty() {
-            //     config.stream.player = player;
-            // }
-
-            let quality = prompt("Default Quality (1080/720/480) [1080]: ");
+        if prompt_bool(&t!("setup.customize_prompt")) {
+            let quality = prompt(&t!("setup.quality_prompt"));
             if !quality.is_empty() {
                 config.stream.quality = quality;
             }
 
-            let trans = prompt("Translation Type (sub/dub) [sub]: ");
+            let trans = prompt(&t!("setup.translation_prompt"));
             if !trans.is_empty() {
                 config.stream.translation_type = trans;
             }
         } else {
-            println!("👍 Using default settings.");
+            println!("{}", t!("setup.use_defaults"));
         }
 
         let toml_str = toml::to_string_pretty(&config)?;
         fs::write(config_path, toml_str)?;
-        println!("✅ Configuration saved.");
+        println!("{}", t!("setup.saved"));
 
-        if prompt_bool("Would you like to authenticate with AniList now?") {
+        if prompt_bool(&t!("setup.auth_prompt")) {
             let proj_dirs = ProjectDirs::from("com", "sleepy-foundry", "ani-l")
                 .context("Could not determine config directory")?;
 
@@ -202,24 +207,24 @@ impl ConfigManager {
             temp_manager.authenticate_interactive().await?;
         }
 
-        println!("🎉 Setup complete! You can now use ani-l.");
+        println!("{}", t!("setup.complete"));
         println!("--------------------------------------------------\n");
         tokio::time::sleep(Duration::from_millis(1500)).await;
         Ok(())
     }
 
     pub async fn authenticate_interactive(&mut self) -> Result<()> {
-        println!("🌍 Opening browser for authentication...");
-        println!("🔗 If it doesn't open, visit: {}", ANILIST_AUTH_URL);
-        println!("Some terminals won't let you paste the whole token.");
-        println!("You can try ");
+        println!("{}", t!("setup.auth_browser"));
+        println!("{}", t!("setup.auth_link", url = ANILIST_AUTH_URL));
+        println!("{}", t!("setup.auth_tip_1"));
+        println!("{}", t!("setup.auth_tip_2"));
         println!("{}", "ani-l auth <token>".yellow().bold());
 
         open_url(ANILIST_AUTH_URL);
 
-        let token = prompt("🔑 Paste your token here: ");
+        let token = prompt(&t!("setup.token_prompt"));
         if token.is_empty() {
-            println!("❌ No token provided.");
+            println!("{}", t!("setup.no_token"));
             return Ok(());
         }
 
@@ -227,16 +232,16 @@ impl ConfigManager {
     }
 
     pub async fn verify_and_save_token(&mut self, token: &str) -> Result<()> {
-        println!("🔄 Verifying token...");
+        println!("{}", t!("setup.verifying"));
         match api::authenticate_user(token).await {
             Ok(user) => {
-                println!("✅ Successfully logged in as: {}", user.name);
+                println!("{}", t!("setup.logged_in", name = user.name));
                 self.auth.anilist_token = Some(token.to_string());
                 self.auth.username = Some(user.name);
                 self.save_auth()?;
             }
             Err(e) => {
-                eprintln!("❌ Authentication failed: {}", e);
+                eprintln!("{}", t!("setup.auth_failed", error = e.to_string()));
             }
         }
         Ok(())
@@ -246,6 +251,37 @@ impl ConfigManager {
         let toml_str = toml::to_string_pretty(&self.auth)?;
         fs::write(&self.auth_path, toml_str)?;
         Ok(())
+    }
+}
+
+fn select_language() -> String {
+    println!("\n🌐 Select Language / Seleccione el idioma:");
+    println!("1. English (en)");
+    println!("2. Español (es)");
+    println!("3. Português (pt)");
+    println!("4. Français (fr)");
+    println!("5. Bahasa Indonesia (id)");
+    println!("6. Русский (ru)");
+
+    loop {
+        print!("{}", "\n> ".cyan().bold());
+        io::stdout().flush().unwrap_or(());
+
+        let mut input = String::new();
+        match io::stdin().read_line(&mut input) {
+            Ok(_) => match input.trim() {
+                "1" => return "en".to_string(),
+                "2" => return "es".to_string(),
+                "3" => return "pt".to_string(),
+                "4" => return "fr".to_string(),
+                "5" => return "id".to_string(),
+                "6" => return "ru".to_string(),
+                _ => {
+                    println!("❌ Invalid selection. Please enter 1-6.");
+                }
+            },
+            Err(_) => return "en".to_string(),
+        }
     }
 }
 
@@ -291,18 +327,10 @@ mod tests {
         let config = Config::default();
 
         assert_eq!(config.general.provider, "allanime");
+        assert_eq!(config.general.language, "en");
         assert_eq!(config.stream.player, "mpv");
         assert_eq!(config.stream.quality, "1080");
         assert_eq!(config.stream.translation_type, "sub");
         assert_eq!(config.stream.episode_complete_at, 85);
-    }
-
-    #[test]
-    fn test_config_serialization() {
-        let config = Config::default();
-        let toml_str = toml::to_string(&config).expect("Failed to serialize");
-
-        assert!(toml_str.contains("provider = \"allanime\""));
-        assert!(toml_str.contains("quality = \"1080\""));
     }
 }

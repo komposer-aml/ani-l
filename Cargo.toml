@@ -1,6 +1,6 @@
 [package]
 name = "ani-l"
-version = "0.2.6"
+version = "0.2.7"
 authors = ["Albert Medrano-Lopez"]
 edition = "2024"
 description = "A terminal-based anime library and streamer."
@@ -29,3 +29,5 @@ ratatui = "0.26"
 strsim="0.10"
 log = "0.4"
 env_logger = "0.11"
+rust-i18n = "3.0"
+lazy_static = "1.4"

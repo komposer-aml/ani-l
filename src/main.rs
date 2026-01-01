@@ -7,6 +7,11 @@ mod provider;
 mod registry;
 mod tui;
 
+#[macro_use]
+extern crate rust_i18n;
+
+i18n!("locales");
+
 use clap::{Parser, Subcommand};
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
@@ -96,6 +101,8 @@ async fn main() -> anyhow::Result<()> {
 
     let mut config_manager = ConfigManager::init_interactive().await?;
     let _registry_manager = RegistryManager::new()?;
+
+    rust_i18n::set_locale(&config_manager.config.general.language);
 
     if let Some(proj_dirs) = ProjectDirs::from("com", "sleepy-foundry", "ani-l")
         && std::env::args().len() > 1
@@ -364,53 +371,50 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
             if idx >= app.main_menu_items.len() {
                 return;
             }
-            let item = app.main_menu_items[idx];
+
+            let item = app.main_menu_items[idx].clone();
+
             app.set_status(format!("Loading {}...", item));
             let _ = terminal.draw(|f| tui::ui::draw(f, app));
 
-            match item {
-                "❌ Exit" => app.running = false,
-                "🔥 Trending" => {
-                    if let Ok(res) =
-                        api::fetch_media(json!({ "perPage": 20, "sort": "TRENDING_DESC" })).await
-                        && let Some(page) = res.data.page
-                    {
-                        app.media_list = page.media;
-                        app.active_media = app.media_list.first().cloned();
-                        app.go_to_mode(ListMode::AnimeList("Trending".into()), true);
-                    }
+            if item == t!("main_menu.exit").to_string() {
+                app.running = false;
+            } else if item == t!("main_menu.trending").to_string() {
+                if let Ok(res) =
+                    api::fetch_media(json!({ "perPage": 20, "sort": "TRENDING_DESC" })).await
+                    && let Some(page) = res.data.page
+                {
+                    app.media_list = page.media;
+                    app.active_media = app.media_list.first().cloned();
+                    app.go_to_mode(ListMode::AnimeList("Trending".into()), true);
                 }
-                "✨ Popular" => {
-                    if let Ok(res) =
-                        api::fetch_media(json!({ "perPage": 20, "sort": "POPULARITY_DESC" })).await
-                        && let Some(page) = res.data.page
-                    {
-                        app.media_list = page.media;
-                        app.active_media = app.media_list.first().cloned();
-                        app.go_to_mode(ListMode::AnimeList("Popular".into()), true);
-                    }
+            } else if item == t!("main_menu.popular").to_string() {
+                if let Ok(res) =
+                    api::fetch_media(json!({ "perPage": 20, "sort": "POPULARITY_DESC" })).await
+                    && let Some(page) = res.data.page
+                {
+                    app.media_list = page.media;
+                    app.active_media = app.media_list.first().cloned();
+                    app.go_to_mode(ListMode::AnimeList("Popular".into()), true);
                 }
-                "🎲 Random" => {
-                    let buffer_size = 20;
-                    let mut rng = thread_rng();
-                    let range: Vec<i32> = (1..18000).collect();
-                    let random_ids: Vec<i32> = range
-                        .choose_multiple(&mut rng, buffer_size)
-                        .cloned()
-                        .collect();
-                    if let Ok(res) =
-                        api::fetch_media(json!({ "id_in": random_ids, "perPage": buffer_size }))
-                            .await
-                        && let Some(page) = res.data.page
-                    {
-                        app.media_list = page.media;
-                        app.active_media = app.media_list.first().cloned();
-                        app.go_to_mode(ListMode::AnimeList("Random".into()), true);
-                    }
+            } else if item == t!("main_menu.random").to_string() {
+                let buffer_size = 20;
+                let mut rng = thread_rng();
+                let range: Vec<i32> = (1..18000).collect();
+                let random_ids: Vec<i32> = range
+                    .choose_multiple(&mut rng, buffer_size)
+                    .cloned()
+                    .collect();
+                if let Ok(res) =
+                    api::fetch_media(json!({ "id_in": random_ids, "perPage": buffer_size })).await
+                    && let Some(page) = res.data.page
+                {
+                    app.media_list = page.media;
+                    app.active_media = app.media_list.first().cloned();
+                    app.go_to_mode(ListMode::AnimeList("Random".into()), true);
                 }
-                _ => {
-                    app.set_status("Feature coming soon!");
-                }
+            } else {
+                app.set_status("Feature coming soon!");
             }
             app.clear_status();
         }
@@ -424,89 +428,82 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
             if idx >= app.anime_action_items.len() {
                 return;
             }
-            let action = app.anime_action_items[idx];
+
+            let action = app.anime_action_items[idx].clone();
 
             if let Some(media) = app.active_media.clone() {
-                match action {
-                    "▶️  Stream (Resume)" => {
-                        let mut next_episode = "1".to_string();
+                if action == t!("actions.stream").to_string() {
+                    let mut next_episode = "1".to_string();
 
-                        if let (Some(token), Some(username)) =
-                            (&config.auth.anilist_token, &config.auth.username)
-                        {
-                            app.set_status("Checking AniList progress...");
-                            terminal.draw(|f| tui::ui::draw(f, app)).unwrap();
+                    if let (Some(token), Some(username)) =
+                        (&config.auth.anilist_token, &config.auth.username)
+                    {
+                        app.set_status("Checking AniList progress...");
+                        terminal.draw(|f| tui::ui::draw(f, app)).unwrap();
 
-                            match api::get_user_progress(token, media.id, username).await {
-                                Ok(Some(progress)) => {
-                                    let is_completed =
-                                        media.episodes.is_some_and(|total| progress >= total);
+                        match api::get_user_progress(token, media.id, username).await {
+                            Ok(Some(progress)) => {
+                                let is_completed =
+                                    media.episodes.is_some_and(|total| progress >= total);
 
-                                    if is_completed {
-                                        next_episode = "1".to_string();
-                                        app.set_status(
-                                            "Series completed. Restarting from Episode 1...",
-                                        );
-                                    } else {
-                                        next_episode = (progress + 1).to_string();
-                                        app.set_status(format!(
-                                            "Resuming at Episode {}...",
-                                            next_episode
-                                        ));
-                                    }
-                                }
-                                Ok(None) => {
-                                    app.set_status("Not in list. Starting at Episode 1.");
-                                }
-                                Err(e) => {
+                                if is_completed {
+                                    next_episode = "1".to_string();
+                                    app.set_status(
+                                        "Series completed. Restarting from Episode 1...",
+                                    );
+                                } else {
+                                    next_episode = (progress + 1).to_string();
                                     app.set_status(format!(
-                                        "Sync failed: {}. Defaulting to Ep 1.",
-                                        e
+                                        "Resuming at Episode {}...",
+                                        next_episode
                                     ));
                                 }
                             }
-                            tokio::time::sleep(Duration::from_millis(800)).await;
-                        } else {
-                            app.set_status("Not logged in. Starting at Episode 1.");
-                            tokio::time::sleep(Duration::from_millis(800)).await;
-                        }
-
-                        suspend_and_watch(
-                            terminal,
-                            media.preferred_title(),
-                            &next_episode,
-                            Some(media.id),
-                            config,
-                        )
-                        .await;
-                        app.clear_status();
-                    }
-                    "📺 Episodes" => {
-                        app.go_to_mode(ListMode::EpisodeSelect, true);
-                    }
-                    "🎞️  Watch Trailer" => {
-                        if let Some(trailer) = &media.trailer {
-                            let site = trailer.site.as_deref().unwrap_or("youtube");
-                            let id = trailer.id.as_deref().unwrap_or("");
-                            if site.eq_ignore_ascii_case("youtube") && !id.is_empty() {
-                                let url = format!("https://www.youtube.com/watch?v={}", id);
-                                app.set_status(format!("Opening {}", url));
-                                let _ = std::process::Command::new("open")
-                                    .arg(&url)
-                                    .spawn()
-                                    .or_else(|_| {
-                                        std::process::Command::new("xdg-open").arg(&url).spawn()
-                                    });
-                            } else {
-                                app.set_status("No YouTube trailer available.");
+                            Ok(None) => {
+                                app.set_status("Not in list. Starting at Episode 1.");
                             }
-                        } else {
-                            app.set_status("No trailer info found.");
+                            Err(e) => {
+                                app.set_status(format!("Sync failed: {}. Defaulting to Ep 1.", e));
+                            }
                         }
+                        tokio::time::sleep(Duration::from_millis(800)).await;
+                    } else {
+                        app.set_status("Not logged in. Starting at Episode 1.");
+                        tokio::time::sleep(Duration::from_millis(800)).await;
                     }
-                    _ => {
-                        app.go_to_mode(ListMode::SubMenu(action.to_string()), true);
+
+                    suspend_and_watch(
+                        terminal,
+                        media.preferred_title(),
+                        &next_episode,
+                        Some(media.id),
+                        config,
+                    )
+                    .await;
+                    app.clear_status();
+                } else if action == t!("actions.episodes").to_string() {
+                    app.go_to_mode(ListMode::EpisodeSelect, true);
+                } else if action == t!("actions.trailer").to_string() {
+                    if let Some(trailer) = &media.trailer {
+                        let site = trailer.site.as_deref().unwrap_or("youtube");
+                        let id = trailer.id.as_deref().unwrap_or("");
+                        if site.eq_ignore_ascii_case("youtube") && !id.is_empty() {
+                            let url = format!("https://www.youtube.com/watch?v={}", id);
+                            app.set_status(format!("Opening {}", url));
+                            let _ = std::process::Command::new("open")
+                                .arg(&url)
+                                .spawn()
+                                .or_else(|_| {
+                                    std::process::Command::new("xdg-open").arg(&url).spawn()
+                                });
+                        } else {
+                            app.set_status("No YouTube trailer available.");
+                        }
+                    } else {
+                        app.set_status("No trailer info found.");
                     }
+                } else {
+                    app.go_to_mode(ListMode::SubMenu(action.to_string()), true);
                 }
             }
         }

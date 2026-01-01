@@ -33,16 +33,16 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
 fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
     let (bg, fg, text) = if app.is_loading {
-        (Color::Yellow, Color::Black, " ⏳ Loading... ".to_string())
+        (Color::Yellow, Color::Black, t!("ui.loading").to_string())
     } else if let Some(msg) = &app.status_message {
         (Color::Blue, Color::White, format!(" ℹ️  {} ", msg))
     } else {
         let help = match app.focus {
-            Focus::SearchBar => "/:Menu | ENTER:Search",
+            Focus::SearchBar => t!("ui.help_search").to_string(),
             Focus::List => match app.list_mode {
-                ListMode::MainMenu => "j/k:Nav | ENTER:Select | q:Quit",
-                ListMode::AnimeActions => "j/k:Nav | ENTER:Select | ESC:Back",
-                _ => "(SHIFT)j/k:Nav | ENTER:Select | ⌫:Back | ESC:Home | /:Search",
+                ListMode::MainMenu => t!("ui.help_nav_select_quit").to_string(),
+                ListMode::AnimeActions => t!("ui.help_nav_select_back").to_string(),
+                _ => t!("ui.help_full").to_string(),
             },
         };
         (Color::DarkGray, Color::White, format!(" {} ", help))
@@ -61,11 +61,11 @@ fn draw_list_panel(f: &mut Frame, area: Rect, app: &mut App) {
     };
 
     let title = match &app.list_mode {
-        ListMode::MainMenu => " Main Menu ".to_string(),
-        ListMode::SearchResults => " Search Results ".to_string(),
+        ListMode::MainMenu => t!("titles.main_menu").to_string(),
+        ListMode::SearchResults => t!("titles.search_results").to_string(),
         ListMode::AnimeList(t) => format!(" {} ", t),
-        ListMode::AnimeActions => " Actions ".to_string(),
-        ListMode::EpisodeSelect => " Select Episode ".to_string(),
+        ListMode::AnimeActions => t!("titles.actions").to_string(),
+        ListMode::EpisodeSelect => t!("titles.select_episode").to_string(),
         ListMode::SubMenu(t) => format!(" {} ", t),
     };
 
@@ -90,10 +90,12 @@ fn draw_list_panel(f: &mut Frame, area: Rect, app: &mut App) {
         ),
         ListMode::EpisodeSelect => {
             let count = app.list_len();
-            let ep_strings: Vec<String> = (1..=count).map(|i| format!("Episode {}", i)).collect();
+            let ep_strings: Vec<String> = (1..=count)
+                .map(|i| t!("ui.episode_prefix", num = i).to_string())
+                .collect();
             create_list(ep_strings)
         }
-        ListMode::SubMenu(_) => vec![ListItem::new("  (Feature Coming Soon)")],
+        ListMode::SubMenu(_) => vec![ListItem::new(t!("ui.feature_soon").to_string())],
         _ => app
             .media_list
             .iter()
@@ -127,7 +129,9 @@ fn draw_list_panel(f: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn draw_left_panel(f: &mut Frame, area: Rect, app: &App) {
-    let block = Block::default().borders(Borders::ALL).title(" Ani-L ");
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(t!("titles.ani_l").to_string());
     let inner_area = block.inner(area);
     f.render_widget(block, area);
 
@@ -141,15 +145,18 @@ fn draw_left_panel(f: &mut Frame, area: Rect, app: &App) {
             )),
             Line::from(""),
             Line::from(vec![
-                Span::styled("Score: ", Style::default().fg(Color::Cyan)),
+                Span::styled(t!("ui.score").to_string(), Style::default().fg(Color::Cyan)),
                 Span::raw(format!("{}%", media.average_score.unwrap_or(0))),
                 Span::raw(" | "),
-                Span::styled("Episodes: ", Style::default().fg(Color::Cyan)),
+                Span::styled(
+                    t!("ui.episodes").to_string(),
+                    Style::default().fg(Color::Cyan),
+                ),
                 Span::raw(format!("{}", media.episodes.unwrap_or(0))),
             ]),
             Line::from(""),
             Line::from(Span::styled(
-                "Description:",
+                t!("ui.description").to_string(),
                 Style::default().fg(Color::Cyan),
             )),
             Line::from(
@@ -181,7 +188,7 @@ fn draw_search_bar(f: &mut Frame, area: Rect, app: &App) {
     };
     let query_text = if app.search_query.is_empty() && app.focus != Focus::SearchBar {
         Span::styled(
-            "Press '/' to search...",
+            t!("ui.search_placeholder").to_string(),
             Style::default().fg(Color::DarkGray),
         )
     } else {
@@ -192,7 +199,7 @@ fn draw_search_bar(f: &mut Frame, area: Rect, app: &App) {
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(border_color))
-                .title(" Search "),
+                .title(t!("titles.search").to_string()),
         ),
         area,
     );
