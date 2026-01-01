@@ -14,12 +14,17 @@ It allows you to browse, search, and stream anime directly from your terminal us
   </a>
 </p>
 
+> [!IMPORTANT]
+> This project scrapes public-facing websites for its streaming / downloading capabilities and primarily acts as an anilist, jikan and many other media apis tui client. The developer(s) of this application have no affiliation with these content providers. This application hosts zero content and is intended for educational and personal use only. Use at your own risk.
+>
+> [**Read the Full Disclaimer**](DISCLAIMER.md)
+
 ## ✨ Features
 
 - 🖥️ **TUI Interface**: A clean, keyboard-driven interface built with `ratatui`.
 - 🔍 **Search**: Query the AniList API for anime metadata.
 - 📺 **Streaming**: Stream episodes directly from sources like AllAnime.
-- 💾 **Library Management**: (Coming Soon) Track your watch progress.
+- 💾 **Library Management**: Track your watch progress.
 
 ## 📦 Installation
 
