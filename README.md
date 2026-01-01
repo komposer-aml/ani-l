@@ -19,7 +19,7 @@ It allows you to browse, search, and stream anime directly from your terminal us
 - 🖥️ **TUI Interface**: A clean, keyboard-driven interface built with `ratatui`.
 - 🔍 **Search**: Query the AniList API for anime metadata.
 - 📺 **Streaming**: Stream episodes directly from sources like AllAnime.
-- 💾 **Library Management**: (Coming Soon) Track your watch progress.
+- 💾 **Library Management**: Track your watch progress.
 
 ## 📦 Installation
 
