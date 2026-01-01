@@ -21,6 +21,7 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
+use strsim::normalized_levenshtein;
 
 use crate::config::ConfigManager;
 use crate::player::traits::{EpisodeAction, EpisodeNavigator, PlayOptions, Player};
@@ -601,7 +602,16 @@ async fn perform_watch(
     println!("🔎 Searching AllAnime for '{}'...", query);
 
     let results = provider.search(&query).await?;
-    if let Some(show) = results.first() {
+
+    let best_match = results.iter().max_by(|a, b| {
+        let score_a = normalized_levenshtein(&a.name.to_lowercase(), &query.to_lowercase());
+        let score_b = normalized_levenshtein(&b.name.to_lowercase(), &query.to_lowercase());
+        score_a
+            .partial_cmp(&score_b)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    if let Some(show) = best_match {
         println!("Found: {} (ID: {})", show.name, show.id);
 
         let show_id = show.id.clone();

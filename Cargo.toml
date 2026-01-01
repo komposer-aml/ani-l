@@ -26,3 +26,4 @@ directories = "5.0"
 chrono = { version = "0.4", features = ["serde"] }
 crossterm = "0.27"
 ratatui = "0.26"
+strsim="0.10"
