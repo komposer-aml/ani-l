@@ -234,6 +234,7 @@ async fn run_tui(config: ConfigManager) -> anyhow::Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App::new();
+    app.init_image_picker();
 
     loop {
         terminal.draw(|f| tui::ui::draw(f, &mut app))?;
@@ -293,6 +294,7 @@ async fn run_tui(config: ConfigManager) -> anyhow::Result<()> {
                                         app.active_media = app.media_list.first().cloned();
                                         app.focus = Focus::List;
                                         app.clear_status();
+                                        update_preview(&mut app);
                                     }
                                 } else {
                                     app.set_status("Search failed.");
@@ -354,7 +356,30 @@ fn update_preview(app: &mut App) {
     ) {
         let idx = app.get_selected_index();
         if idx < app.media_list.len() {
-            app.active_media = Some(app.media_list[idx].clone());
+            let media = app.media_list[idx].clone();
+            if app.active_media.as_ref().map(|m| m.id) != Some(media.id) {
+                app.active_media = Some(media.clone());
+                app.current_cover_image = None;
+                app.is_fetching_image = true;
+
+                if let Some(cover) = media.cover_image {
+                    let url = cover.extra_large.or(cover.large).or(cover.medium);
+                    if let Some(url_str) = url {
+                        let tx = app.image_tx.clone();
+                        tokio::task::spawn_blocking(move || {
+                            if let Ok(resp) = reqwest::blocking::get(url_str) {
+                                if let Ok(bytes) = resp.bytes() {
+                                    let _ = tx.send(bytes.to_vec());
+                                }
+                            }
+                        });
+                    } else {
+                        app.is_fetching_image = false;
+                    }
+                } else {
+                    app.is_fetching_image = false;
+                }
+            }
         }
     }
 }
@@ -385,6 +410,7 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                     app.media_list = page.media;
                     app.active_media = app.media_list.first().cloned();
                     app.go_to_mode(ListMode::AnimeList("Trending".into()), true);
+                    update_preview(app);
                 }
             } else if item == t!("main_menu.popular") {
                 if let Ok(res) =
@@ -394,6 +420,7 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                     app.media_list = page.media;
                     app.active_media = app.media_list.first().cloned();
                     app.go_to_mode(ListMode::AnimeList("Popular".into()), true);
+                    update_preview(app);
                 }
             } else if item == t!("main_menu.random") {
                 let buffer_size = 20;
@@ -410,6 +437,7 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                     app.media_list = page.media;
                     app.active_media = app.media_list.first().cloned();
                     app.go_to_mode(ListMode::AnimeList("Random".into()), true);
+                    update_preview(app);
                 }
             } else {
                 app.set_status("Feature coming soon!");

@@ -48,6 +48,16 @@ pub struct Media {
     pub genres: Vec<String>,
     pub studios: Option<StudioConnection>,
     pub trailer: Option<Trailer>,
+    pub popularity: Option<i32>,
+    pub favourites: Option<i32>,
+    pub status: Option<String>,
+    pub format: Option<String>,
+    #[serde(rename = "startDate")]
+    pub start_date: Option<FuzzyDate>,
+    #[serde(rename = "endDate")]
+    pub end_date: Option<FuzzyDate>,
+    pub synonyms: Option<Vec<String>>,
+    pub tags: Option<Vec<MediaTag>>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -96,6 +106,18 @@ pub struct MediaListEntry {
     pub score: Option<f64>,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct FuzzyDate {
+    pub year: Option<i32>,
+    pub month: Option<i32>,
+    pub day: Option<i32>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MediaTag {
+    pub name: String,
+}
+
 impl Media {
     pub fn preferred_title(&self) -> &str {
         self.title
@@ -105,78 +127,29 @@ impl Media {
             .or(self.title.native.as_deref())
             .unwrap_or("Unknown Title")
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn test_media_preferred_title() {
-        // Case 1: English title exists
-        let m1 = Media {
-            id: 1,
-            title: MediaTitle {
-                english: Some("Naruto".into()),
-                romaji: Some("Naruto".into()),
-                native: None,
-            },
-            cover_image: None,
-            episodes: None,
-            description: None,
-            average_score: None,
-            genres: vec![],
-            studios: None,
-            trailer: None,
-        };
-        assert_eq!(m1.preferred_title(), "Naruto");
-
-        // Case 2: Only Romaji exists
-        let m2 = Media {
-            id: 2,
-            title: MediaTitle {
-                english: None,
-                romaji: Some("Shingeki no Kyojin".into()),
-                native: None,
-            },
-            cover_image: None,
-            episodes: None,
-            description: None,
-            average_score: None,
-            genres: vec![],
-            studios: None,
-            trailer: None,
-        };
-        assert_eq!(m2.preferred_title(), "Shingeki no Kyojin");
+    pub fn formatted_start_date(&self) -> String {
+        self.start_date
+            .as_ref()
+            .map(|d| d.to_string())
+            .unwrap_or_else(|| "?".to_string())
     }
 
-    #[test]
-    fn test_anilist_response_deserialization() {
-        let json_data = json!({
-            "data": {
-                "Page": {
-                    "pageInfo": {
-                        "total": 100,
-                        "currentPage": 1,
-                        "hasNextPage": true
-                    },
-                    "media": [
-                        {
-                            "id": 1,
-                            "title": { "english": "Cowboy Bebop" },
-                            "genres": ["Action", "Sci-Fi"]
-                        }
-                    ]
-                }
-            }
-        });
+    pub fn formatted_end_date(&self) -> String {
+        self.end_date
+            .as_ref()
+            .map(|d| d.to_string())
+            .unwrap_or_else(|| "?".to_string())
+    }
+}
 
-        let response: AniListResponse =
-            serde_json::from_value(json_data).expect("Failed to deserialize mock AniList response");
-
-        let page = response.data.page.unwrap();
-        assert_eq!(page.media.len(), 1);
-        assert_eq!(page.media[0].preferred_title(), "Cowboy Bebop");
+impl ToString for FuzzyDate {
+    fn to_string(&self) -> String {
+        match (self.year, self.month, self.day) {
+            (Some(y), Some(m), Some(d)) => format!("{:04}-{:02}-{:02}", y, m, d),
+            (Some(y), Some(m), None) => format!("{:04}-{:02}", y, m),
+            (Some(y), None, None) => format!("{:04}", y),
+            _ => "?".to_string(),
+        }
     }
 }

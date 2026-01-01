@@ -1,5 +1,8 @@
 use crate::models::Media;
 use ratatui::widgets::ListState;
+use ratatui_image::picker::Picker;
+use ratatui_image::protocol::StatefulProtocol;
+use std::sync::mpsc::{Receiver, Sender};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Focus {
@@ -17,7 +20,6 @@ pub enum ListMode {
     SubMenu(String),
 }
 
-#[derive(Debug, Clone)]
 pub struct App {
     pub running: bool,
     pub focus: Focus,
@@ -39,12 +41,20 @@ pub struct App {
 
     pub status_message: Option<String>,
     pub is_loading: bool,
+
+    pub image_picker: Option<Picker>,
+    pub current_cover_image: Option<Box<dyn StatefulProtocol>>,
+    pub image_tx: Sender<Vec<u8>>,
+    pub image_rx: Receiver<Vec<u8>>,
+    pub is_fetching_image: bool,
 }
 
 impl App {
     pub fn new() -> Self {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
+
+        let (tx, rx) = std::sync::mpsc::channel();
 
         Self {
             running: true,
@@ -76,6 +86,17 @@ impl App {
             active_media: None,
             status_message: None,
             is_loading: false,
+            image_picker: None,
+            current_cover_image: None,
+            image_tx: tx,
+            image_rx: rx,
+            is_fetching_image: false,
+        }
+    }
+
+    pub fn init_image_picker(&mut self) {
+        if let Ok(picker) = Picker::from_termios() {
+            self.image_picker = Some(picker);
         }
     }
 
@@ -83,6 +104,16 @@ impl App {
         self.cube_angle += 0.02;
         if self.cube_angle > 360.0 {
             self.cube_angle = 0.0;
+        }
+
+        if let Ok(bytes) = self.image_rx.try_recv() {
+            if let Some(picker) = &mut self.image_picker {
+                if let Ok(img) = image::load_from_memory(&bytes) {
+                    let protocol = picker.new_resize_protocol(img);
+                    self.current_cover_image = Some(protocol);
+                }
+            }
+            self.is_fetching_image = false;
         }
     }
 
@@ -159,6 +190,7 @@ impl App {
             self.list_state.select(Some(prev_index));
             self.active_media = prev_media;
             self.clear_status();
+            self.current_cover_image = None;
         } else if matches!(self.list_mode, ListMode::MainMenu) {
             self.running = false;
         } else {
@@ -175,6 +207,7 @@ impl App {
         self.search_query.clear();
         self.focus = Focus::List;
         self.clear_status();
+        self.current_cover_image = None;
     }
 
     pub fn list_len(&self) -> usize {

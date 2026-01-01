@@ -9,6 +9,7 @@ use ratatui::{
         canvas::{Canvas, Line as CanvasLine},
     },
 };
+use ratatui_image::StatefulImage;
 
 pub fn draw(f: &mut Frame, app: &mut App) {
     let main_chunks = Layout::default()
@@ -128,7 +129,7 @@ fn draw_list_panel(f: &mut Frame, area: Rect, app: &mut App) {
     f.render_stateful_widget(list, area, &mut app.list_state);
 }
 
-fn draw_left_panel(f: &mut Frame, area: Rect, app: &App) {
+fn draw_left_panel(f: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title(t!("titles.ani_l").to_string());
@@ -136,7 +137,31 @@ fn draw_left_panel(f: &mut Frame, area: Rect, app: &App) {
     f.render_widget(block, area);
 
     if let Some(media) = &app.active_media {
-        let text = vec![
+        let left_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
+            .split(inner_area);
+
+        let top_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+            .split(left_layout[0]);
+
+        if let Some(protocol) = &mut app.current_cover_image {
+            let image = StatefulImage::new(None);
+            f.render_stateful_widget(image, top_layout[0], protocol);
+        } else {
+            let placeholder = Paragraph::new(if app.is_fetching_image {
+                "Loading Image..."
+            } else {
+                "No Image"
+            })
+            .alignment(Alignment::Center)
+            .block(Block::default().borders(Borders::ALL));
+            f.render_widget(placeholder, top_layout[0]);
+        }
+
+        let details = vec![
             Line::from(Span::styled(
                 media.preferred_title(),
                 Style::default()
@@ -145,19 +170,46 @@ fn draw_left_panel(f: &mut Frame, area: Rect, app: &App) {
             )),
             Line::from(""),
             Line::from(vec![
-                Span::styled(t!("ui.score").to_string(), Style::default().fg(Color::Cyan)),
+                Span::styled("Score: ", Style::default().fg(Color::Cyan)),
                 Span::raw(format!("{}%", media.average_score.unwrap_or(0))),
                 Span::raw(" | "),
-                Span::styled(
-                    t!("ui.episodes").to_string(),
-                    Style::default().fg(Color::Cyan),
-                ),
-                Span::raw(format!("{}", media.episodes.unwrap_or(0))),
+                Span::styled("Favs: ", Style::default().fg(Color::Cyan)),
+                Span::raw(format!("{}", media.favourites.unwrap_or(0))),
             ]),
-            Line::from(""),
-            Line::from(Span::styled(
-                t!("ui.description").to_string(),
+            Line::from(vec![
+                Span::styled("Pop: ", Style::default().fg(Color::Cyan)),
+                Span::raw(format!("{}", media.popularity.unwrap_or(0))),
+                Span::raw(" | "),
+                Span::styled("Status: ", Style::default().fg(Color::Cyan)),
+                Span::raw(media.status.clone().unwrap_or("Unknown".into())),
+            ]),
+            Line::from(vec![
+                Span::styled("Format: ", Style::default().fg(Color::Cyan)),
+                Span::raw(media.format.clone().unwrap_or("?".into())),
+            ]),
+            Line::from("----"),
+            Line::from(vec![Span::styled(
+                "Genres: ",
                 Style::default().fg(Color::Cyan),
+            )]),
+            Line::from(media.genres.join(", ")),
+        ];
+
+        f.render_widget(
+            Paragraph::new(details).wrap(Wrap { trim: true }).block(
+                Block::default()
+                    .borders(Borders::NONE)
+                    .padding(ratatui::widgets::Padding::new(1, 0, 0, 0)),
+            ),
+            top_layout[1],
+        );
+
+        let bottom_text = vec![
+            Line::from(Span::styled(
+                "Description:",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::from(
                 media
@@ -168,12 +220,55 @@ fn draw_left_panel(f: &mut Frame, area: Rect, app: &App) {
                     .replace("<i>", "")
                     .replace("</i>", ""),
             ),
+            Line::from(""),
+            Line::from(Span::styled("Details:", Style::default().fg(Color::Cyan))),
+            Line::from(vec![
+                Span::raw("Studios: "),
+                Span::raw(
+                    media
+                        .studios
+                        .as_ref()
+                        .map(|s| {
+                            s.nodes
+                                .iter()
+                                .map(|n| n.name.clone())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        })
+                        .unwrap_or("-".to_string()),
+                ),
+            ]),
+            Line::from(vec![
+                Span::raw("Aired: "),
+                Span::raw(format!(
+                    "{} to {}",
+                    media.formatted_start_date(),
+                    media.formatted_end_date()
+                )),
+            ]),
+            Line::from(vec![
+                Span::raw("Tags: "),
+                Span::raw(
+                    media
+                        .tags
+                        .as_ref()
+                        .map(|t| {
+                            t.iter()
+                                .take(5)
+                                .map(|tag| tag.name.clone())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        })
+                        .unwrap_or("-".to_string()),
+                ),
+            ]),
         ];
+
         f.render_widget(
-            Paragraph::new(text)
+            Paragraph::new(bottom_text)
                 .wrap(Wrap { trim: true })
-                .alignment(Alignment::Center),
-            inner_area,
+                .block(Block::default().borders(Borders::TOP)),
+            left_layout[1],
         );
     } else {
         draw_cube(f, inner_area, app.cube_angle);

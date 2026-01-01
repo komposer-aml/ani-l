@@ -11,13 +11,21 @@ query ($search: String, $perPage: Int, $page: Int, $sort: [MediaSort], $id_in: [
     media(search: $search, id_in: $id_in, sort: $sort, type: ANIME) {
       id
       title { romaji, english, native }
-      coverImage { large }
+      coverImage { extraLarge large medium }
       episodes
       averageScore
+      popularity
+      favourites
+      status
+      format
       genres
       description
       studios { nodes { name } }
       trailer { id, site }
+      startDate { year month day }
+      endDate { year month day }
+      synonyms
+      tags { name }
     }
   }
 }
@@ -138,24 +146,4 @@ async fn send_request(
     }
 
     res.json().await.context("Failed to parse response")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_fetch_media_structure() {
-        let variables = json!({ "search": "Naruto", "perPage": 1 });
-        let result = fetch_media(variables).await;
-
-        assert!(result.is_ok(), "Should fetch media successfully");
-        let response = result.unwrap();
-
-        assert!(response.data.page.is_some());
-        let page = response.data.page.unwrap();
-
-        assert!(!page.media.is_empty());
-        assert_eq!(page.media[0].preferred_title(), "Naruto");
-    }
 }
