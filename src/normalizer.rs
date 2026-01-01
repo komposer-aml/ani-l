@@ -1,0 +1,33 @@
+pub fn normalize(provider: &str, title: &str) -> String {
+    match provider {
+        "allanime" => match title {
+            "1P" => "one piece",
+            "Magia Record: Mahou Shoujo Madoka☆Magica Gaiden (TV)" => "Mahou Shoujo Madoka☆Magica",
+            "Dungeon ni Deai o Motomeru no wa Machigatte Iru Darouka" => "Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka",
+            "Hazurewaku no \"Joutai Ijou Skill\" de Saikyou ni Natta Ore ga Subete wo Juurin suru made" => "Hazure Waku no [Joutai Ijou Skill] de Saikyou ni Natta Ore ga Subete wo Juurin Suru made",
+            "Re:Zero kara Hajimeru Isekai Seikatsu Season 3" => "Re:Zero kara Hajimeru Isekai Seikatsu 3rd Season",
+            "Hanka×Hanka (2011)" => "Hunter × Hunter (2011)",
+            "Burichi -" => "bleach",
+            _ => title,
+        },
+        "hianime" => match title {
+            "My Star" => "Oshi no Ko",
+            _ => title,
+        },
+        "animepahe" => match title {
+            "Azumanga Daiou The Animation" => "Azumanga Daioh",
+            "Mairimashita! Iruma-kun 2nd Season" => "Mairimashita! Iruma-kun 2",
+            "Mairimashita! Iruma-kun 3rd Season" => "Mairimashita! Iruma-kun 3",
+            _ => title,
+        },
+        "animeunity" => match title {
+            "Kaiju No. 8" => "Kaiju No.8",
+            "Naruto Shippuden" => "Naruto: Shippuden",
+            "Psycho-Pass: Sinners of the System Case.1 - Crime and Punishment" => "PSYCHO-PASS Sinners of the System: Case.1 Crime and Punishment",
+            "Psycho-Pass: Sinners of the System Case.2 - First Guardian" => "PSYCHO-PASS Sinners of the System: Case.2 First Guardian",
+            "Psycho-Pass: Sinners of the System Case.3 - On the Other Side of Love and Hate" => "PSYCHO-PASS Sinners of the System: Case.3 Beyond the Pale of Vengeance",
+            _ => title,
+        },
+        _ => title,
+    }.to_string()
+}

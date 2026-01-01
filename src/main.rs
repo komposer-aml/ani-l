@@ -1,6 +1,7 @@
 mod api;
 mod config;
 mod models;
+mod normalizer;
 mod player;
 mod provider;
 mod registry;
@@ -604,8 +605,12 @@ async fn perform_watch(
     let results = provider.search(&query).await?;
 
     let best_match = results.iter().max_by(|a, b| {
-        let score_a = normalized_levenshtein(&a.name.to_lowercase(), &query.to_lowercase());
-        let score_b = normalized_levenshtein(&b.name.to_lowercase(), &query.to_lowercase());
+        let name_a = normalizer::normalize("allanime", &a.name);
+        let name_b = normalizer::normalize("allanime", &b.name);
+
+        let score_a = normalized_levenshtein(&name_a.to_lowercase(), &query.to_lowercase());
+        let score_b = normalized_levenshtein(&name_b.to_lowercase(), &query.to_lowercase());
+
         score_a
             .partial_cmp(&score_b)
             .unwrap_or(std::cmp::Ordering::Equal)

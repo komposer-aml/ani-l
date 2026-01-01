@@ -35,7 +35,7 @@ pub struct AvailableEpisodes {
 
 #[derive(Debug, Deserialize)]
 pub struct EpisodeResultData {
-    pub episode: EpisodeData,
+    pub episode: Option<EpisodeData>,
 }
 
 #[derive(Debug, Deserialize)]

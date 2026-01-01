@@ -45,7 +45,7 @@ impl AllAnimeProvider {
                 "allowUnknown": false,
                 "query": query
             },
-            "limit": 5,
+            "limit": 100,
             "page": 1,
             "translationType": "sub",
             "countryOrigin": "ALL"
@@ -91,7 +91,11 @@ impl AllAnimeProvider {
 
         let resp: AllAnimeResponse<EpisodeResultData> =
             self.client.get(&url).send().await?.json().await?;
-        Ok(resp.data.episode.source_urls)
+
+        match resp.data.episode {
+            Some(ep) => Ok(ep.source_urls),
+            None => anyhow::bail!("Episode {} not found for show ID {}", episode_num, show_id),
+        }
     }
 
     pub async fn extract_clock_stream(&self, source_url: &str) -> Result<PlayOptions> {
