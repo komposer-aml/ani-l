@@ -12,10 +12,11 @@ const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 
 pub struct AllAnimeProvider {
     client: Client,
+    translation_type: String,
 }
 
 impl AllAnimeProvider {
-    pub fn new() -> Self {
+    pub fn new(translation_type: String) -> Self {
         let mut headers = header::HeaderMap::new();
         headers.insert(header::REFERER, header::HeaderValue::from_static(REFERER));
         headers.insert(
@@ -24,11 +25,17 @@ impl AllAnimeProvider {
         );
 
         let client = Client::builder().default_headers(headers).build().unwrap();
-        Self { client }
+        Self {
+            client,
+            translation_type,
+        }
     }
 
     pub async fn search(&self, query: &str) -> Result<Vec<ShowEdge>> {
-        debug!("Searching provider for '{}'...", query);
+        debug!(
+            "Searching provider for '{}' [{}]...",
+            query, self.translation_type
+        );
 
         let gql = r#"
         query($search: SearchInput, $limit: Int, $page: Int, $translationType: VaildTranslationTypeEnumType, $countryOrigin: VaildCountryOriginEnumType) {
@@ -50,7 +57,7 @@ impl AllAnimeProvider {
             },
             "limit": 50,
             "page": 1,
-            "translationType": "sub",
+            "translationType": self.translation_type,
             "countryOrigin": "ALL"
         });
 
@@ -75,8 +82,8 @@ impl AllAnimeProvider {
         episode_num: &str,
     ) -> Result<Vec<SourceUrl>> {
         debug!(
-            "Fetching sources for Show ID: {}, Episode: {}",
-            show_id, episode_num
+            "Fetching {} sources for Show ID: {}, Episode: {}",
+            self.translation_type, show_id, episode_num
         );
 
         let gql = r#"
@@ -89,7 +96,7 @@ impl AllAnimeProvider {
 
         let variables = json!({
             "showId": show_id,
-            "translationType": "sub",
+            "translationType": self.translation_type,
             "episodeString": episode_num
         });
 

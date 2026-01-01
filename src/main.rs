@@ -582,7 +582,10 @@ async fn perform_watch(
     anilist_id: Option<i32>,
     config: &ConfigManager,
 ) -> anyhow::Result<()> {
-    let provider = Arc::new(AllAnimeProvider::new());
+    let provider = Arc::new(AllAnimeProvider::new(
+        config.config.stream.translation_type.clone(),
+    ));
+
     println!("🔎 Searching AllAnime for '{}'...", query);
 
     let results = provider.search(&query).await?;
