@@ -103,12 +103,13 @@ async fn main() -> anyhow::Result<()> {
     if let Some(proj_dirs) = ProjectDirs::from("com", "sleepy-foundry", "ani-l")
         && std::env::args().len() > 1
         && !std::env::args().any(|a| a == "tui")
-        && cli.verbose {
-            println!(
-                "📂 Configuration & Registry loaded from: {:?}",
-                proj_dirs.config_dir()
-            );
-        }
+        && cli.verbose
+    {
+        println!(
+            "📂 Configuration & Registry loaded from: {:?}",
+            proj_dirs.config_dir()
+        );
+    }
 
     let command = cli.command.unwrap_or(Commands::Tui);
 
