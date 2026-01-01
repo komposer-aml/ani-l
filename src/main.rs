@@ -367,10 +367,10 @@ fn update_preview(app: &mut App) {
                     if let Some(url_str) = url {
                         let tx = app.image_tx.clone();
                         tokio::task::spawn_blocking(move || {
-                            if let Ok(resp) = reqwest::blocking::get(url_str) {
-                                if let Ok(bytes) = resp.bytes() {
-                                    let _ = tx.send(bytes.to_vec());
-                                }
+                            if let Ok(resp) = reqwest::blocking::get(url_str)
+                                && let Ok(bytes) = resp.bytes()
+                            {
+                                let _ = tx.send(bytes.to_vec());
                             }
                         });
                     } else {

@@ -106,14 +106,13 @@ impl App {
             .unwrap_or((0, 0));
 
         // If ioctl failed (common in multiplexers), try escape sequence query
-        if font_size.0 == 0 || font_size.1 == 0 {
-            if let Ok(pixels) = self.query_terminal_pixels() {
-                if let Ok((cols, rows)) = crossterm::terminal::size() {
-                    if cols > 0 && rows > 0 {
-                        font_size = (pixels.0 / cols, pixels.1 / rows);
-                    }
-                }
-            }
+        if (font_size.0 == 0 || font_size.1 == 0)
+            && let Ok(pixels) = self.query_terminal_pixels()
+            && let Ok((cols, rows)) = crossterm::terminal::size()
+            && cols > 0
+            && rows > 0
+        {
+            font_size = (pixels.0 / cols, pixels.1 / rows);
         }
 
         // Fallback if everything fails
@@ -151,16 +150,16 @@ impl App {
 
         // Read response loop (timeout 500ms)
         while start.elapsed() < Duration::from_millis(500) {
-            if event::poll(Duration::from_millis(10))? {
-                if let Event::Key(key) = event::read()? {
-                    match key.code {
-                        KeyCode::Char(c) => response.push(c),
-                        KeyCode::Esc => response.push('\x1b'),
-                        _ => {}
-                    }
-                    if response.ends_with('t') {
-                        break;
-                    }
+            if event::poll(Duration::from_millis(10))?
+                && let Event::Key(key) = event::read()?
+            {
+                match key.code {
+                    KeyCode::Char(c) => response.push(c),
+                    KeyCode::Esc => response.push('\x1b'),
+                    _ => {}
+                }
+                if response.ends_with('t') {
+                    break;
                 }
             }
         }
@@ -186,11 +185,11 @@ impl App {
         }
 
         if let Ok(bytes) = self.image_rx.try_recv() {
-            if let Some(picker) = &mut self.image_picker {
-                if let Ok(img) = image::load_from_memory(&bytes) {
-                    let protocol = picker.new_resize_protocol(img);
-                    self.current_cover_image = Some(protocol);
-                }
+            if let Some(picker) = &mut self.image_picker
+                && let Ok(img) = image::load_from_memory(&bytes)
+            {
+                let protocol = picker.new_resize_protocol(img);
+                self.current_cover_image = Some(protocol);
             }
             self.is_fetching_image = false;
         }
