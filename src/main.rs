@@ -7,12 +7,10 @@ mod provider;
 mod registry;
 mod tui;
 
-// --- i18n Setup ---
 #[macro_use]
 extern crate rust_i18n;
 
 i18n!("locales");
-// ------------------
 
 use clap::{Parser, Subcommand};
 use crossterm::{
@@ -104,7 +102,6 @@ async fn main() -> anyhow::Result<()> {
     let mut config_manager = ConfigManager::init_interactive().await?;
     let _registry_manager = RegistryManager::new()?;
 
-    // Set the locale based on config
     rust_i18n::set_locale(&config_manager.config.general.language);
 
     if let Some(proj_dirs) = ProjectDirs::from("com", "sleepy-foundry", "ani-l")
@@ -374,13 +371,10 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
             if idx >= app.main_menu_items.len() {
                 return;
             }
-            // Clone the item to avoid holding an immutable borrow of `app`
             let item = app.main_menu_items[idx].clone();
 
             app.set_status(format!("Loading {}...", item));
             let _ = terminal.draw(|f| tui::ui::draw(f, app));
-
-            // FIXED: Removed .to_string(), comparing String with Cow<str> directly
             if item == t!("main_menu.exit") {
                 app.running = false;
             } else if item == t!("main_menu.trending") {
@@ -432,11 +426,9 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
             if idx >= app.anime_action_items.len() {
                 return;
             }
-            // Clone the action string to release borrow
             let action = app.anime_action_items[idx].clone();
 
             if let Some(media) = app.active_media.clone() {
-                // FIXED: Removed .to_string(), comparing String with Cow<str> directly
                 if action == t!("actions.stream") {
                     let mut next_episode = "1".to_string();
 
