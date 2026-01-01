@@ -439,11 +439,21 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
 
                             match api::get_user_progress(token, media.id, username).await {
                                 Ok(Some(progress)) => {
-                                    next_episode = (progress + 1).to_string();
-                                    app.set_status(format!(
-                                        "Resuming at Episode {}...",
-                                        next_episode
-                                    ));
+                                    let is_completed =
+                                        media.episodes.map_or(false, |total| progress >= total);
+
+                                    if is_completed {
+                                        next_episode = "1".to_string();
+                                        app.set_status(
+                                            "Series completed. Restarting from Episode 1...",
+                                        );
+                                    } else {
+                                        next_episode = (progress + 1).to_string();
+                                        app.set_status(format!(
+                                            "Resuming at Episode {}...",
+                                            next_episode
+                                        ));
+                                    }
                                 }
                                 Ok(None) => {
                                     app.set_status("Not in list. Starting at Episode 1.");
