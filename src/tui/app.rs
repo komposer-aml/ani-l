@@ -4,7 +4,8 @@ use ratatui::widgets::ListState;
 use ratatui_image::picker::Picker;
 use ratatui_image::protocol::StatefulProtocol;
 use std::collections::VecDeque;
-use tokio::sync::mpsc;
+use std::sync::Arc;
+use tokio::sync::{Notify, mpsc};
 
 #[derive(Debug, Clone)]
 pub enum Action {
@@ -25,6 +26,8 @@ pub enum Action {
     StreamStarted,
     StreamLog(String),
     StreamFinished,
+    Suspend(Arc<Notify>),
+    Resume,
 }
 
 #[derive(Debug, Clone, PartialEq)]

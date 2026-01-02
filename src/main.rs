@@ -24,6 +24,7 @@ use std::io;
 use std::sync::Arc;
 use std::time::Duration;
 use strsim::normalized_levenshtein;
+use tokio::sync::Notify;
 
 use crate::config::ConfigManager;
 use crate::player::traits::{EpisodeAction, EpisodeNavigator, PlayOptions, Player};
@@ -82,10 +83,9 @@ async fn main() -> Result<()> {
 
 async fn run_tui(config_manager: ConfigManager) -> Result<()> {
     enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+    execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(io::stdout());
+    let mut terminal = Some(Terminal::new(backend)?);
 
     let mut app = App::new(config_manager);
     app.init_image_picker();
@@ -99,84 +99,96 @@ async fn run_tui(config_manager: ConfigManager) -> Result<()> {
         });
     }
 
+    let mut suspended = false;
+
     loop {
-        terminal.draw(|f| tui::ui::draw(f, &mut app))?;
+        if !suspended {
+            if let Some(term) = &mut terminal {
+                term.draw(|f| tui::ui::draw(f, &mut app))?;
 
-        let mut input_event = None;
-        if crossterm::event::poll(Duration::from_millis(16))? {
-            input_event = Some(crossterm::event::read()?);
-        }
+                let mut input_event = None;
+                if crossterm::event::poll(Duration::from_millis(16))? {
+                    input_event = Some(crossterm::event::read()?);
+                }
 
-        if let Some(Event::Key(key)) = input_event {
-            if key.kind == event::KeyEventKind::Press {
-                if app.show_update_modal {
-                    match key.code {
-                        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
-                            app.show_update_modal = false;
+                if let Some(Event::Key(key)) = input_event {
+                    if key.kind == event::KeyEventKind::Press {
+                        if app.show_update_modal {
+                            match key.code {
+                                KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
+                                    app.show_update_modal = false;
+                                }
+                                _ => {}
+                            }
+                        } else {
+                            match app.focus {
+                                Focus::SearchBar => match key.code {
+                                    KeyCode::Char('/') => {
+                                        app.action_tx.send(Action::ToggleFocus)?
+                                    }
+                                    KeyCode::Enter => {
+                                        if !app.search_query.is_empty() {
+                                            app.action_tx.send(Action::SearchStarted)?;
+                                            let query = app.search_query.clone();
+                                            let tx = app.action_tx.clone();
+                                            tokio::spawn(async move {
+                                                match api::fetch_media(serde_json::json!({
+                                                    "search": query, "perPage": 20, "sort": "POPULARITY_DESC"
+                                                })).await {
+                                                    Ok(res) => {
+                                                        if let Some(page) = res.data.page {
+                                                            let _ = tx.send(Action::SearchCompleted(page.media, None));
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        let _ = tx.send(Action::SearchError(e.to_string()));
+                                                    }
+                                                }
+                                            });
+                                        }
+                                    }
+                                    KeyCode::Char(c) => {
+                                        app.search_query.push(c);
+                                    }
+                                    KeyCode::Backspace => {
+                                        app.search_query.pop();
+                                    }
+                                    KeyCode::Esc => {
+                                        app.focus = Focus::List;
+                                    }
+                                    _ => {}
+                                },
+                                Focus::List => match key.code {
+                                    KeyCode::Char('q') => app.action_tx.send(Action::Quit)?,
+                                    KeyCode::Char('/') => {
+                                        app.action_tx.send(Action::ToggleFocus)?
+                                    }
+                                    KeyCode::Down | KeyCode::Char('j') => {
+                                        app.action_tx.send(Action::NavigateDown)?
+                                    }
+                                    KeyCode::Up | KeyCode::Char('k') => {
+                                        app.action_tx.send(Action::NavigateUp)?
+                                    }
+                                    KeyCode::PageDown | KeyCode::Char('J') => {
+                                        app.action_tx.send(Action::NavigatePageDown)?
+                                    }
+                                    KeyCode::PageUp | KeyCode::Char('K') => {
+                                        app.action_tx.send(Action::NavigatePageUp)?
+                                    }
+                                    KeyCode::Enter => app.action_tx.send(Action::Select)?,
+                                    KeyCode::Esc => app.action_tx.send(Action::GoBack)?,
+                                    KeyCode::Backspace => app.action_tx.send(Action::GoBack)?,
+                                    _ => {}
+                                },
+                            }
                         }
-                        _ => {}
                     }
                 } else {
-                    match app.focus {
-                        Focus::SearchBar => match key.code {
-                            KeyCode::Char('/') => app.action_tx.send(Action::ToggleFocus)?,
-                            KeyCode::Enter => {
-                                if !app.search_query.is_empty() {
-                                    app.action_tx.send(Action::SearchStarted)?;
-                                    let query = app.search_query.clone();
-                                    let tx = app.action_tx.clone();
-                                    tokio::spawn(async move {
-                                        match api::fetch_media(serde_json::json!({
-                                            "search": query, "perPage": 20, "sort": "POPULARITY_DESC"
-                                        })).await {
-                                            Ok(res) => {
-                                                if let Some(page) = res.data.page {
-                                                    let _ = tx.send(Action::SearchCompleted(page.media, None));
-                                                }
-                                            }
-                                            Err(e) => {
-                                                let _ = tx.send(Action::SearchError(e.to_string()));
-                                            }
-                                        }
-                                    });
-                                }
-                            }
-                            KeyCode::Char(c) => {
-                                app.search_query.push(c);
-                            }
-                            KeyCode::Backspace => {
-                                app.search_query.pop();
-                            }
-                            KeyCode::Esc => {
-                                app.focus = Focus::List;
-                            }
-                            _ => {}
-                        },
-                        Focus::List => match key.code {
-                            KeyCode::Char('q') => app.action_tx.send(Action::Quit)?,
-                            KeyCode::Char('/') => app.action_tx.send(Action::ToggleFocus)?,
-                            KeyCode::Down | KeyCode::Char('j') => {
-                                app.action_tx.send(Action::NavigateDown)?
-                            }
-                            KeyCode::Up | KeyCode::Char('k') => {
-                                app.action_tx.send(Action::NavigateUp)?
-                            }
-                            KeyCode::PageDown | KeyCode::Char('J') => {
-                                app.action_tx.send(Action::NavigatePageDown)?
-                            }
-                            KeyCode::PageUp | KeyCode::Char('K') => {
-                                app.action_tx.send(Action::NavigatePageUp)?
-                            }
-                            KeyCode::Enter => app.action_tx.send(Action::Select)?,
-                            KeyCode::Esc => app.action_tx.send(Action::GoBack)?,
-                            KeyCode::Backspace => app.action_tx.send(Action::GoBack)?,
-                            _ => {}
-                        },
-                    }
+                    app.action_tx.send(Action::Tick)?;
                 }
             }
         } else {
-            app.action_tx.send(Action::Tick)?;
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
 
         while let Ok(action) = app.action_rx.try_recv() {
@@ -240,7 +252,9 @@ async fn run_tui(config_manager: ConfigManager) -> Result<()> {
                 }
                 Action::StreamFinished => {
                     app.go_back();
-                    terminal.clear()?;
+                    if let Some(term) = &mut terminal {
+                        let _ = term.clear();
+                    }
                 }
                 Action::Select => handle_selection(&mut app)?,
                 Action::ImageLoaded(bytes) => {
@@ -252,6 +266,27 @@ async fn run_tui(config_manager: ConfigManager) -> Result<()> {
                     }
                     app.is_fetching_image = false;
                 }
+                Action::Suspend(notify) => {
+                    suspended = true;
+                    if let Some(mut term) = terminal.take() {
+                        let _ = term.show_cursor();
+                        let _ = term.clear();
+                    }
+                    let mut stdout = io::stdout();
+                    let _ = execute!(stdout, LeaveAlternateScreen, DisableMouseCapture);
+                    let _ = disable_raw_mode();
+                    notify.notify_one();
+                }
+                Action::Resume => {
+                    enable_raw_mode()?;
+                    execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+                    let backend = CrosstermBackend::new(io::stdout());
+                    let mut term = Terminal::new(backend)?;
+                    term.hide_cursor()?;
+                    term.clear()?;
+                    terminal = Some(term);
+                    suspended = false;
+                }
             }
         }
 
@@ -260,13 +295,11 @@ async fn run_tui(config_manager: ConfigManager) -> Result<()> {
         }
     }
 
+    if let Some(mut term) = terminal {
+        term.show_cursor()?;
+    }
     disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
+    execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture)?;
     Ok(())
 }
 
@@ -371,7 +404,7 @@ fn handle_selection(app: &mut App) -> Result<()> {
                 let action = &app.anime_action_items[idx];
                 if action == &t!("actions.stream") {
                     if let Some(media) = app.active_media.clone() {
-                        start_stream_task(app, media, "1".to_string());
+                        start_stream_task(app, media, None);
                     }
                 } else if action == &t!("actions.episodes") {
                     app.go_to_mode(ListMode::EpisodeSelect, true);
@@ -383,7 +416,7 @@ fn handle_selection(app: &mut App) -> Result<()> {
         ListMode::EpisodeSelect => {
             let ep_num = (app.get_selected_index() + 1).to_string();
             if let Some(media) = app.active_media.clone() {
-                start_stream_task(app, media, ep_num);
+                start_stream_task(app, media, Some(ep_num));
             }
         }
         ListMode::Options => {
@@ -447,13 +480,38 @@ async fn resolve_stream_for_episode(
     Ok(None)
 }
 
-fn start_stream_task(app: &App, media: crate::models::Media, episode: String) {
+fn start_stream_task(app: &App, media: crate::models::Media, episode: Option<String>) {
     let tx = app.action_tx.clone();
     let config = app.config_manager.clone();
 
     let _ = tx.send(Action::StreamStarted);
 
     tokio::spawn(async move {
+        let episode_to_watch = if let Some(ep) = episode {
+            ep
+        } else {
+            let mut ep = "1".to_string();
+            if let (Some(token), Some(username)) =
+                (&config.auth.anilist_token, &config.auth.username)
+            {
+                let _ = tx.send(Action::StreamLog(t!("logs.updating_anilist").to_string()));
+                if let Ok(Some(progress)) = api::get_user_progress(token, media.id, username).await
+                {
+                    let next = progress + 1;
+                    if let Some(total) = media.episodes {
+                        if next > total {
+                            ep = "1".to_string();
+                        } else {
+                            ep = next.to_string();
+                        }
+                    } else {
+                        ep = next.to_string();
+                    }
+                }
+            }
+            ep
+        };
+
         let query = media.preferred_title();
         let _ = tx.send(Action::StreamLog(
             t!("logs.searching_provider", query = query).to_string(),
@@ -486,17 +544,22 @@ fn start_stream_task(app: &App, media: crate::models::Media, episode: String) {
                     let show_name = show.name.clone();
 
                     let _ = tx.send(Action::StreamLog(
-                        t!("logs.fetching_episode", ep = episode).to_string(),
+                        t!("logs.fetching_episode", ep = episode_to_watch).to_string(),
                     ));
 
-                    match resolve_stream_for_episode(&provider, &show_id, &show_name, &episode)
-                        .await
+                    match resolve_stream_for_episode(
+                        &provider,
+                        &show_id,
+                        &show_name,
+                        &episode_to_watch,
+                    )
+                    .await
                     {
                         Ok(Some(options)) => {
                             let _ = tx.send(Action::StreamLog(t!("logs.stream_found").to_string()));
 
                             let current_ep_num = Arc::new(tokio::sync::Mutex::new(
-                                episode.parse::<i32>().unwrap_or(1),
+                                episode_to_watch.parse::<i32>().unwrap_or(1),
                             ));
                             let provider_clone = provider.clone();
                             let s_id = show_id.clone();
@@ -533,7 +596,16 @@ fn start_stream_task(app: &App, media: crate::models::Media, episode: String) {
                             };
 
                             let player = crate::player::mpv::MpvPlayer;
-                            match player.play(options, Some(navigator)).await {
+
+                            let notify = Arc::new(Notify::new());
+                            let _ = tx.send(Action::Suspend(notify.clone()));
+                            notify.notified().await;
+
+                            let play_result = player.play(options, Some(navigator)).await;
+
+                            let _ = tx.send(Action::Resume);
+
+                            match play_result {
                                 Ok(percentage) => {
                                     let _ = tx.send(Action::StreamLog(
                                         t!("logs.finished", prog = format!("{:.1}", percentage))
