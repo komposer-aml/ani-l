@@ -1,6 +1,8 @@
 # ani-l
 
-[![Crates.io](https://img.shields.io/crates/v/ani-l.svg)](https://crates.io/crates/ani-l)
+![GitHub Repo stars](https://img.shields.io/github/stars/komposer-aml/ani-l?style=flat&logo=github&label=Stars&link=https%3A%2F%2Fgithub.com%2Fkomposer-aml%2Fani-l)
+[![Crates.io](https://img.shields.io/crates/v/ani-l.svg?label=Crates.io)](https://img.shields.io/crates/d/ani-l)
+![Crates.io Total Downloads](https://img.shields.io/crates/d/ani-l?label=Downloads)
 [![License: LGPL-2.1](https://img.shields.io/badge/License-LGPL_2.1-blue.svg)](LICENSE)
 [![Rust CI](https://github.com/komposer-aml/ani-l/actions/workflows/ci.yml/badge.svg)](https://github.com/komposer-aml/ani-l/actions)
 
