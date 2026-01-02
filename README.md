@@ -23,6 +23,10 @@ It allows you to browse, search, and stream anime directly from your terminal us
 
 ## ✨ Features
 
+<p align="center" width="100%">
+<video src="https://github.com/user-attachments/assets/57bad7de-9984-46e3-ba3d-b1903950e983" width="80%" controls></video>
+</p>
+
 - 🖥️ **TUI Interface**: A clean, keyboard-driven interface built with `ratatui`.
 - 🔍 **Search**: Query the AniList API for anime metadata.
 - 📺 **Streaming**: Stream episodes directly from sources like AllAnime.
