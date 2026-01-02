@@ -4,6 +4,7 @@ main_menu:
   top_scored: "💯 Melhores Avaliados"
   recently_updated: "🔔 Atualizados Recentemente"
   random: "🎲 Aleatório"
+  options: "⚙️  Opções"
   exit: "❌ Sair"
 
 actions:
@@ -16,11 +17,17 @@ actions:
   related: "🔗 Relacionados"
   recommendations: "💡 Recomendações"
 
+options:
+  quality: "Qualidade: %{val}"
+  translation: "Tradução: %{val}"
+  language: "Idioma: %{val}"
+
 titles:
   main_menu: " Menu Principal "
   search_results: " Resultados "
   actions: " Ações "
   select_episode: " Selecionar Episódio "
+  options: " Opções "
   search: " Buscar "
   ani_l: " Ani-L "
 

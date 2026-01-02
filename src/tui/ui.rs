@@ -67,6 +67,7 @@ fn draw_list_panel(f: &mut Frame, area: Rect, app: &mut App) {
         ListMode::AnimeList(t) => format!(" {} ", t),
         ListMode::AnimeActions => t!("titles.actions").to_string(),
         ListMode::EpisodeSelect => t!("titles.select_episode").to_string(),
+        ListMode::Options => t!("titles.options").to_string(),
         ListMode::SubMenu(t) => format!(" {} ", t),
     };
 
@@ -95,6 +96,19 @@ fn draw_list_panel(f: &mut Frame, area: Rect, app: &mut App) {
                 .map(|i| t!("ui.episode_prefix", num = i).to_string())
                 .collect();
             create_list(ep_strings)
+        }
+        ListMode::Options => {
+            vec![
+                ListItem::new(pad(&t!("options.quality", val = app.config.stream.quality))),
+                ListItem::new(pad(&t!(
+                    "options.translation",
+                    val = app.config.stream.translation_type
+                ))),
+                ListItem::new(pad(&t!(
+                    "options.language",
+                    val = app.config.general.language
+                ))),
+            ]
         }
         ListMode::SubMenu(_) => vec![ListItem::new(t!("ui.feature_soon").to_string())],
         _ => app

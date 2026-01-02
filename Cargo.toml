@@ -1,6 +1,6 @@
 [package]
 name = "ani-l"
-version = "0.3.2"
+version = "0.3.3"
 authors = ["Albert Medrano-Lopez"]
 edition = "2024"
 description = "A terminal-based anime library and streamer."

@@ -226,14 +226,14 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn run_tui(config: ConfigManager) -> anyhow::Result<()> {
+async fn run_tui(mut config_manager: ConfigManager) -> anyhow::Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new();
+    let mut app = App::new(config_manager.config.clone());
     app.init_image_picker();
 
     loop {
@@ -325,7 +325,7 @@ async fn run_tui(config: ConfigManager) -> anyhow::Result<()> {
                             app.reset_to_main_menu();
                         }
                         KeyCode::Enter => {
-                            handle_enter(&mut app, &mut terminal, &config).await;
+                            handle_enter(&mut app, &mut terminal, &mut config_manager).await;
                         }
                         _ => {}
                     },
@@ -387,7 +387,7 @@ fn update_preview(app: &mut App) {
 async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
     app: &mut App,
     terminal: &mut Terminal<B>,
-    config: &ConfigManager,
+    config_manager: &mut ConfigManager,
 ) {
     let current_mode = app.list_mode.clone();
     match current_mode {
@@ -402,6 +402,8 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
             let _ = terminal.draw(|f| tui::ui::draw(f, app));
             if item == t!("main_menu.exit") {
                 app.running = false;
+            } else if item == t!("main_menu.options") {
+                app.go_to_mode(ListMode::Options, true);
             } else if item == t!("main_menu.trending") {
                 if let Ok(res) =
                     api::fetch_media(json!({ "perPage": 20, "sort": "TRENDING_DESC" })).await
@@ -444,6 +446,47 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
             }
             app.clear_status();
         }
+        ListMode::Options => {
+            let idx = app.get_selected_index();
+            match idx {
+                0 => {
+                    let qualities = ["1080", "720", "480"];
+                    let current = app.config.stream.quality.as_str();
+                    if let Some(pos) = qualities.iter().position(|&q| q == current) {
+                        let next = (pos + 1) % qualities.len();
+                        app.config.stream.quality = qualities[next].to_string();
+                    } else {
+                        app.config.stream.quality = "1080".to_string();
+                    }
+                }
+                1 => {
+                    let types = ["sub", "dub"];
+                    let current = app.config.stream.translation_type.as_str();
+                    if let Some(pos) = types.iter().position(|&t| t == current) {
+                        let next = (pos + 1) % types.len();
+                        app.config.stream.translation_type = types[next].to_string();
+                    } else {
+                        app.config.stream.translation_type = "sub".to_string();
+                    }
+                }
+                2 => {
+                    let langs = ["en", "es", "pt", "fr", "id", "ru"];
+                    let current = app.config.general.language.as_str();
+                    if let Some(pos) = langs.iter().position(|&l| l == current) {
+                        let next = (pos + 1) % langs.len();
+                        app.config.general.language = langs[next].to_string();
+                        rust_i18n::set_locale(&app.config.general.language);
+                        app.update_localized_items();
+                    }
+                }
+                _ => {}
+            }
+
+            config_manager.config = app.config.clone();
+            if let Err(e) = config_manager.save_config() {
+                app.set_status(format!("Failed to save config: {}", e));
+            }
+        }
         ListMode::SearchResults | ListMode::AnimeList(_) => {
             if app.active_media.is_some() {
                 app.go_to_mode(ListMode::AnimeActions, true);
@@ -460,9 +503,10 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                 if action == t!("actions.stream") {
                     let mut next_episode = "1".to_string();
 
-                    if let (Some(token), Some(username)) =
-                        (&config.auth.anilist_token, &config.auth.username)
-                    {
+                    if let (Some(token), Some(username)) = (
+                        &config_manager.auth.anilist_token,
+                        &config_manager.auth.username,
+                    ) {
                         app.set_status("Checking AniList progress...");
                         terminal.draw(|f| tui::ui::draw(f, app)).unwrap();
 
@@ -502,7 +546,7 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                         media.preferred_title(),
                         &next_episode,
                         Some(media.id),
-                        config,
+                        config_manager,
                     )
                     .await;
                     app.clear_status();
@@ -540,7 +584,7 @@ async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
                     media.preferred_title(),
                     &episode_num,
                     Some(media.id),
-                    config,
+                    config_manager,
                 )
                 .await;
             }

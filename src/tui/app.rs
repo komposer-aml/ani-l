@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::models::Media;
 use ratatui::widgets::ListState;
 use ratatui_image::picker::Picker;
@@ -17,6 +18,7 @@ pub enum ListMode {
     AnimeList(String),
     AnimeActions,
     EpisodeSelect,
+    Options,
     SubMenu(String),
 }
 
@@ -47,40 +49,26 @@ pub struct App {
     pub image_tx: Sender<Vec<u8>>,
     pub image_rx: Receiver<Vec<u8>>,
     pub is_fetching_image: bool,
+
+    pub config: Config,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(config: Config) -> Self {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
 
         let (tx, rx) = std::sync::mpsc::channel();
 
-        Self {
+        let mut app = Self {
             running: true,
             focus: Focus::List,
             list_mode: ListMode::MainMenu,
             history_stack: Vec::new(),
             search_query: String::new(),
             list_state,
-            main_menu_items: vec![
-                t!("main_menu.trending").to_string(),
-                t!("main_menu.popular").to_string(),
-                t!("main_menu.top_scored").to_string(),
-                t!("main_menu.recently_updated").to_string(),
-                t!("main_menu.random").to_string(),
-                t!("main_menu.exit").to_string(),
-            ],
-            anime_action_items: vec![
-                t!("actions.stream").to_string(),
-                t!("actions.episodes").to_string(),
-                t!("actions.trailer").to_string(),
-                t!("actions.reviews").to_string(),
-                t!("actions.schedule").to_string(),
-                t!("actions.characters").to_string(),
-                t!("actions.related").to_string(),
-                t!("actions.recommendations").to_string(),
-            ],
+            main_menu_items: vec![],
+            anime_action_items: vec![],
             media_list: vec![],
             cube_angle: 0.0,
             active_media: None,
@@ -91,7 +79,33 @@ impl App {
             image_tx: tx,
             image_rx: rx,
             is_fetching_image: false,
-        }
+            config,
+        };
+
+        app.update_localized_items();
+        app
+    }
+
+    pub fn update_localized_items(&mut self) {
+        self.main_menu_items = vec![
+            t!("main_menu.trending").to_string(),
+            t!("main_menu.popular").to_string(),
+            t!("main_menu.top_scored").to_string(),
+            t!("main_menu.recently_updated").to_string(),
+            t!("main_menu.random").to_string(),
+            t!("main_menu.options").to_string(),
+            t!("main_menu.exit").to_string(),
+        ];
+        self.anime_action_items = vec![
+            t!("actions.stream").to_string(),
+            t!("actions.episodes").to_string(),
+            t!("actions.trailer").to_string(),
+            t!("actions.reviews").to_string(),
+            t!("actions.schedule").to_string(),
+            t!("actions.characters").to_string(),
+            t!("actions.related").to_string(),
+            t!("actions.recommendations").to_string(),
+        ];
     }
 
     #[allow(deprecated)]
@@ -223,6 +237,7 @@ impl App {
                 .as_ref()
                 .and_then(|m| m.episodes)
                 .unwrap_or(100) as usize,
+            ListMode::Options => 3,
             ListMode::SubMenu(_) => 0,
             _ => self.media_list.len(),
         }

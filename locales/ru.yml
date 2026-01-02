@@ -4,6 +4,7 @@ main_menu:
   top_scored: "💯 Лучшие оценки"
   recently_updated: "🔔 Обновления"
   random: "🎲 Случайное"
+  options: "⚙️  Настройки"
   exit: "❌ Выход"
 
 actions:
@@ -16,11 +17,17 @@ actions:
   related: "🔗 Похожее"
   recommendations: "💡 Рекомендации"
 
+options:
+  quality: "Качество: %{val}"
+  translation: "Перевод: %{val}"
+  language: "Язык: %{val}"
+
 titles:
   main_menu: " Главное меню "
   search_results: " Результаты "
   actions: " Действия "
   select_episode: " Выбор эпизода "
+  options: " Настройки "
   search: " Поиск "
   ani_l: " Ani-L "
 

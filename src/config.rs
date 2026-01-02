@@ -155,6 +155,12 @@ impl ConfigManager {
         })
     }
 
+    pub fn save_config(&self) -> Result<()> {
+        let toml_str = toml::to_string_pretty(&self.config)?;
+        fs::write(&self.config_path, toml_str)?;
+        Ok(())
+    }
+
     async fn run_setup_wizard(config_path: &Path) -> Result<()> {
         let language = select_language();
 

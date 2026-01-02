@@ -4,6 +4,7 @@ main_menu:
   top_scored: "💯 Top Scored"
   recently_updated: "🔔 Recently Updated"
   random: "🎲 Random"
+  options: "⚙️  Options"
   exit: "❌ Exit"
 
 actions:
@@ -16,11 +17,17 @@ actions:
   related: "🔗 Related Anime"
   recommendations: "💡 Recommendations"
 
+options:
+  quality: "Quality: %{val}"
+  translation: "Translation: %{val}"
+  language: "Language: %{val}"
+
 titles:
   main_menu: " Main Menu "
   search_results: " Search Results "
   actions: " Actions "
   select_episode: " Select Episode "
+  options: " Options "
   search: " Search "
   ani_l: " Ani-L "
 

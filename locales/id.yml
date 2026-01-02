@@ -4,6 +4,7 @@ main_menu:
   top_scored: "💯 Nilai Tertinggi"
   recently_updated: "🔔 Baru Diperbarui"
   random: "🎲 Acak"
+  options: "⚙️  Opsi"
   exit: "❌ Keluar"
 
 actions:
@@ -16,11 +17,17 @@ actions:
   related: "🔗 Terkait"
   recommendations: "💡 Rekomendasi"
 
+options:
+  quality: "Kualitas: %{val}"
+  translation: "Terjemahan: %{val}"
+  language: "Bahasa: %{val}"
+
 titles:
   main_menu: " Menu Utama "
   search_results: " Hasil Pencarian "
   actions: " Tindakan "
   select_episode: " Pilih Episode "
+  options: " Opsi "
   search: " Cari "
   ani_l: " Ani-L "
 
