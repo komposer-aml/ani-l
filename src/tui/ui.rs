@@ -19,9 +19,9 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let right_col = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Search bar
-            Constraint::Min(1),    // List
-            Constraint::Length(1), // Status
+            Constraint::Length(3),
+            Constraint::Min(1),
+            Constraint::Length(1),
         ])
         .split(layout[1]);
 
@@ -30,6 +30,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     draw_list_panel(f, right_col[1], app);
     draw_status_bar(f, right_col[2], app);
 
+    // Modal Overlays
     if app.show_update_modal {
         draw_update_modal(f, app);
     }
@@ -250,10 +251,10 @@ fn draw_list_panel(f: &mut Frame, area: Rect, app: &mut App) {
         ListMode::EpisodeSelect => {
             let count = app.list_len();
             (1..=count)
-                .map(|i| ListItem::new(pad(&t!("ui.episode_prefix", num = i).to_string())))
+                .map(|i| ListItem::new(pad(&t!("ui.episode_prefix", num = i))))
                 .collect()
         }
-        ListMode::SubMenu(_) => vec![ListItem::new(pad(&t!("ui.feature_soon").to_string()))],
+        ListMode::SubMenu(_) => vec![ListItem::new(pad(&t!("ui.feature_soon")))],
         _ => app
             .media_list
             .iter()

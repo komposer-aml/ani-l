@@ -547,49 +547,43 @@ fn start_stream_task(app: &App, media: crate::models::Media, episode: String) {
                                     let required_percentage =
                                         config.config.stream.episode_complete_at as f64;
 
-                                    if percentage >= required_percentage {
-                                        if let (Some(token), Some(username)) =
+                                    if percentage >= required_percentage
+                                        && let (Some(token), Some(username)) =
                                             (&config.auth.anilist_token, &config.auth.username)
+                                    {
+                                        let _ = tx
+                                            .send(Action::StreamLog("Updating AniList...".into()));
+                                        match api::get_user_progress(token, media.id, username)
+                                            .await
                                         {
-                                            let _ = tx.send(Action::StreamLog(
-                                                "Updating AniList...".into(),
-                                            ));
-                                            match api::get_user_progress(token, media.id, username)
-                                                .await
-                                            {
-                                                Ok(current_progress) => {
-                                                    let prog = current_progress.unwrap_or(0);
-                                                    if final_ep_num > prog {
-                                                        if let Err(e) = api::update_user_entry(
-                                                            token,
-                                                            media.id,
-                                                            final_ep_num,
-                                                            "CURRENT",
-                                                        )
-                                                        .await
-                                                        {
-                                                            let _ = tx.send(Action::StreamLog(
-                                                                format!(
-                                                                    "AniList Update Failed: {}",
-                                                                    e
-                                                                ),
-                                                            ));
-                                                        } else {
-                                                            let _ = tx.send(Action::StreamLog(
-                                                                format!(
-                                                                    "AniList Updated to Ep {}",
-                                                                    final_ep_num
-                                                                ),
-                                                            ));
-                                                        }
+                                            Ok(current_progress) => {
+                                                let prog = current_progress.unwrap_or(0);
+                                                if final_ep_num > prog {
+                                                    if let Err(e) = api::update_user_entry(
+                                                        token,
+                                                        media.id,
+                                                        final_ep_num,
+                                                        "CURRENT",
+                                                    )
+                                                    .await
+                                                    {
+                                                        let _ = tx.send(Action::StreamLog(
+                                                            format!("AniList Update Failed: {}", e),
+                                                        ));
+                                                    } else {
+                                                        let _ =
+                                                            tx.send(Action::StreamLog(format!(
+                                                                "AniList Updated to Ep {}",
+                                                                final_ep_num
+                                                            )));
                                                     }
                                                 }
-                                                Err(e) => {
-                                                    let _ = tx.send(Action::StreamLog(format!(
-                                                        "AniList Sync Error: {}",
-                                                        e
-                                                    )));
-                                                }
+                                            }
+                                            Err(e) => {
+                                                let _ = tx.send(Action::StreamLog(format!(
+                                                    "AniList Sync Error: {}",
+                                                    e
+                                                )));
                                             }
                                         }
                                     }
