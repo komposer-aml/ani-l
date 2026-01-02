@@ -102,7 +102,6 @@ mod tests {
 
     #[test]
     fn test_registry_manager_in_memory() {
-        // We simulate a registry without writing to disk
         let mut registry = Registry::default();
 
         let entry = RegistryEntry {

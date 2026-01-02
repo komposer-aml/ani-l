@@ -1,9 +1,31 @@
-use crate::config::Config;
+use crate::config::ConfigManager;
 use crate::models::Media;
 use ratatui::widgets::ListState;
 use ratatui_image::picker::Picker;
 use ratatui_image::protocol::StatefulProtocol;
-use std::sync::mpsc::{Receiver, Sender};
+use std::collections::VecDeque;
+use tokio::sync::mpsc;
+
+#[derive(Debug, Clone)]
+pub enum Action {
+    Tick,
+    Quit,
+    ToggleFocus,
+    NavigateUp,
+    NavigateDown,
+    NavigatePageUp,
+    NavigatePageDown,
+    GoBack,
+    Select,
+    SearchStarted,
+    SearchCompleted(Vec<Media>, Option<String>),
+    SearchError(String),
+    ImageLoaded(Vec<u8>),
+    UpdateAvailable(String),
+    StreamStarted,
+    StreamLog(String),
+    StreamFinished,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Focus {
@@ -19,6 +41,7 @@ pub enum ListMode {
     AnimeActions,
     EpisodeSelect,
     Options,
+    StreamLogging,
     SubMenu(String),
 }
 
@@ -26,72 +49,57 @@ pub struct App {
     pub running: bool,
     pub focus: Focus,
     pub list_mode: ListMode,
-
-    pub history_stack: Vec<(ListMode, usize, Option<Media>)>,
-
     pub search_query: String,
-
     pub list_state: ListState,
-
     pub main_menu_items: Vec<String>,
     pub anime_action_items: Vec<String>,
-
     pub media_list: Vec<Media>,
-
-    pub cube_angle: f64,
     pub active_media: Option<Media>,
-
-    pub status_message: Option<String>,
+    pub config_manager: ConfigManager,
+    pub history_stack: Vec<(ListMode, usize, Option<Media>)>,
+    pub action_tx: mpsc::UnboundedSender<Action>,
+    pub action_rx: mpsc::UnboundedReceiver<Action>,
+    pub cube_angle: f64,
     pub is_loading: bool,
-
+    pub status_message: Option<String>,
+    pub stream_logs: VecDeque<String>,
     pub image_picker: Option<Picker>,
     pub current_cover_image: Option<StatefulProtocol>,
-    pub image_tx: Sender<Vec<u8>>,
-    pub image_rx: Receiver<Vec<u8>>,
     pub is_fetching_image: bool,
-
-    pub update_tx: Sender<String>,
-    pub update_rx: Receiver<String>,
     pub new_version: Option<String>,
     pub show_update_modal: bool,
-
-    pub config: Config,
 }
 
 impl App {
-    pub fn new(config: Config) -> Self {
+    pub fn new(config_manager: ConfigManager) -> Self {
+        let (action_tx, action_rx) = mpsc::unbounded_channel();
         let mut list_state = ListState::default();
         list_state.select(Some(0));
-
-        let (tx, rx) = std::sync::mpsc::channel();
-        let (update_tx, update_rx) = std::sync::mpsc::channel();
 
         let mut app = Self {
             running: true,
             focus: Focus::List,
             list_mode: ListMode::MainMenu,
-            history_stack: Vec::new(),
             search_query: String::new(),
             list_state,
             main_menu_items: vec![],
             anime_action_items: vec![],
             media_list: vec![],
-            cube_angle: 0.0,
             active_media: None,
-            status_message: None,
+            config_manager,
+            history_stack: Vec::new(),
+            action_tx,
+            action_rx,
+            cube_angle: 0.0,
             is_loading: false,
+            status_message: None,
+            stream_logs: VecDeque::with_capacity(20),
             image_picker: None,
             current_cover_image: None,
-            image_tx: tx,
-            image_rx: rx,
             is_fetching_image: false,
-            update_tx,
-            update_rx,
             new_version: None,
             show_update_modal: false,
-            config,
         };
-
         app.update_localized_items();
         app
     }
@@ -124,7 +132,6 @@ impl App {
             Ok(p) => p,
             Err(_) => Picker::from_fontsize((10, 20)),
         };
-
         self.image_picker = Some(picker);
     }
 
@@ -133,34 +140,19 @@ impl App {
         if self.cube_angle > 360.0 {
             self.cube_angle = 0.0;
         }
+    }
 
-        if let Ok(bytes) = self.image_rx.try_recv() {
-            if let Some(picker) = &mut self.image_picker
-                && let Ok(img) = image::load_from_memory(&bytes)
-            {
-                let protocol = picker.new_resize_protocol(img);
-                self.current_cover_image = Some(protocol);
-            }
-            self.is_fetching_image = false;
+    pub fn log_stream(&mut self, msg: String) {
+        if self.stream_logs.len() >= 20 {
+            self.stream_logs.pop_front();
         }
-    }
-
-    pub fn set_status<S: Into<String>>(&mut self, msg: S) {
-        self.status_message = Some(msg.into());
-    }
-
-    pub fn clear_status(&mut self) {
-        self.status_message = None;
-    }
-
-    pub fn get_selected_index(&self) -> usize {
-        self.list_state.selected().unwrap_or(0)
+        self.stream_logs.push_back(msg);
     }
 
     pub fn next(&mut self) {
         let i = match self.list_state.selected() {
             Some(i) => {
-                if i >= self.list_len() - 1 {
+                if i >= self.list_len().saturating_sub(1) {
                     0
                 } else {
                     i + 1
@@ -198,14 +190,31 @@ impl App {
         self.list_state.select(Some(next));
     }
 
+    pub fn list_len(&self) -> usize {
+        match self.list_mode {
+            ListMode::MainMenu => self.main_menu_items.len(),
+            ListMode::AnimeActions => self.anime_action_items.len(),
+            ListMode::EpisodeSelect => self
+                .active_media
+                .as_ref()
+                .and_then(|m| m.episodes)
+                .unwrap_or(100) as usize,
+            ListMode::Options => 3,
+            ListMode::SubMenu(_) => 1,
+            _ => self.media_list.len(),
+        }
+    }
+
+    pub fn get_selected_index(&self) -> usize {
+        self.list_state.selected().unwrap_or(0)
+    }
+
     pub fn go_to_mode(&mut self, mode: ListMode, reset_index: bool) {
-        let current_index = self.get_selected_index();
         self.history_stack.push((
             self.list_mode.clone(),
-            current_index,
+            self.get_selected_index(),
             self.active_media.clone(),
         ));
-
         self.list_mode = mode;
         if reset_index {
             self.list_state.select(Some(0));
@@ -217,39 +226,16 @@ impl App {
             self.list_mode = prev_mode;
             self.list_state.select(Some(prev_index));
             self.active_media = prev_media;
-            self.clear_status();
             self.current_cover_image = None;
+            self.stream_logs.clear();
         } else if matches!(self.list_mode, ListMode::MainMenu) {
             self.running = false;
         } else {
-            self.reset_to_main_menu();
-        }
-    }
-
-    pub fn reset_to_main_menu(&mut self) {
-        self.list_mode = ListMode::MainMenu;
-        self.history_stack.clear();
-        self.media_list.clear();
-        self.list_state.select(Some(0));
-        self.active_media = None;
-        self.search_query.clear();
-        self.focus = Focus::List;
-        self.clear_status();
-        self.current_cover_image = None;
-    }
-
-    pub fn list_len(&self) -> usize {
-        match self.list_mode {
-            ListMode::MainMenu => self.main_menu_items.len(),
-            ListMode::AnimeActions => self.anime_action_items.len(),
-            ListMode::EpisodeSelect => self
-                .active_media
-                .as_ref()
-                .and_then(|m| m.episodes)
-                .unwrap_or(100) as usize,
-            ListMode::Options => 3,
-            ListMode::SubMenu(_) => 0,
-            _ => self.media_list.len(),
+            self.list_mode = ListMode::MainMenu;
+            self.history_stack.clear();
+            self.list_state.select(Some(0));
+            self.active_media = None;
+            self.search_query.clear();
         }
     }
 }

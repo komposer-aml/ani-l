@@ -12,20 +12,15 @@ extern crate rust_i18n;
 
 i18n!("locales");
 
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use directories::ProjectDirs;
-use log::{debug, info};
-use rand::seq::SliceRandom;
-use rand::thread_rng;
 use ratatui::{Terminal, backend::CrosstermBackend};
-use serde_json::json;
-use std::io::{self, Write};
-use std::path::Path;
+use std::io;
 use std::sync::Arc;
 use std::time::Duration;
 use strsim::normalized_levenshtein;
@@ -34,90 +29,37 @@ use crate::config::ConfigManager;
 use crate::player::traits::{EpisodeAction, EpisodeNavigator, PlayOptions, Player};
 use crate::provider::allanime::AllAnimeProvider;
 use crate::registry::RegistryManager;
-use crate::tui::app::{App, Focus, ListMode};
-use crate::tui::events::TuiEvent;
+use crate::tui::app::{Action, App, Focus, ListMode};
 
 #[derive(Parser)]
 #[command(name = "ani-l")]
-#[command(about = "Terminal Anime Library & Streamer", long_about = None)]
 struct Cli {
-    #[arg(short, long, global = true)]
-    verbose: bool,
-
     #[command(subcommand)]
     command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    Search {
-        #[command(subcommand)]
-        mode: SearchMode,
-        #[arg(long, default_value_t = 1)]
-        page: i32,
-        #[arg(long, default_value_t = 10)]
-        per_page: i32,
-    },
-    Play {
-        #[arg(short, long)]
-        url: String,
-        #[arg(short, long)]
-        title: Option<String>,
-    },
-    Watch {
-        #[arg(short, long)]
-        query: String,
-        #[arg(short, long, default_value = "1")]
-        episode: String,
-    },
+    Tui,
     Auth {
         #[arg(required = false)]
         token_input: Option<String>,
         #[arg(long, short)]
         logout: bool,
     },
-    Tui,
-}
-
-#[derive(Subcommand)]
-enum SearchMode {
-    Query {
-        #[arg(short, long)]
-        text: String,
-    },
-    Trending,
-    Popular,
-    Random,
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let cli = Cli::parse();
-
-    if cli.verbose {
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
-        debug!("Verbose mode enabled");
-    }
+async fn main() -> Result<()> {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("off")).init();
 
     let mut config_manager = ConfigManager::init_interactive().await?;
     let _registry_manager = RegistryManager::new()?;
-
     rust_i18n::set_locale(&config_manager.config.general.language);
 
-    if let Some(proj_dirs) = ProjectDirs::from("com", "sleepy-foundry", "ani-l")
-        && std::env::args().len() > 1
-        && !std::env::args().any(|a| a == "tui")
-        && cli.verbose
-    {
-        println!(
-            "📂 Configuration & Registry loaded from: {:?}",
-            proj_dirs.config_dir()
-        );
-    }
-
-    let command = cli.command.unwrap_or(Commands::Tui);
-
-    match command {
+    let cli = Cli::parse();
+    match cli.command.unwrap_or(Commands::Tui) {
+        Commands::Tui => run_tui(config_manager).await?,
         Commands::Auth {
             token_input,
             logout,
@@ -127,120 +69,32 @@ async fn main() -> anyhow::Result<()> {
                 config_manager.auth.username = None;
                 config_manager.save_auth()?;
                 println!("✅ Logged out successfully.");
-                return Ok(());
-            }
-
-            if let Some(input) = token_input {
-                let token_to_verify = {
-                    let path = Path::new(&input);
-                    if path.exists() && path.is_file() {
-                        println!("📂 Reading token from file: {:?}", path);
-                        std::fs::read_to_string(path)?.trim().to_string()
-                    } else {
-                        input
-                    }
-                };
-                config_manager
-                    .verify_and_save_token(&token_to_verify)
-                    .await?;
+            } else if let Some(input) = token_input {
+                config_manager.verify_and_save_token(&input).await?;
             } else {
                 config_manager.authenticate_interactive().await?;
             }
-        }
-        Commands::Search {
-            mode,
-            page,
-            per_page,
-        } => {
-            let variables = match mode {
-                SearchMode::Query { text } => {
-                    println!("🔍 Searching for '{}' (Page {})...", text, page);
-                    json!({ "search": text, "page": page, "perPage": per_page, "sort": "POPULARITY_DESC" })
-                }
-                SearchMode::Trending => {
-                    println!("🔥 Fetching Trending Anime (Page {})...", page);
-                    json!({ "page": page, "perPage": per_page, "sort": "TRENDING_DESC" })
-                }
-                SearchMode::Popular => {
-                    println!("✨ Fetching Popular Anime (Page {})...", page);
-                    json!({ "page": page, "perPage": per_page, "sort": "POPULARITY_DESC" })
-                }
-                SearchMode::Random => {
-                    println!("🎲 Fetching Random Anime...");
-                    let buffer_size = 50;
-                    let mut rng = thread_rng();
-                    let range: Vec<i32> = (1..18000).collect();
-                    let random_ids: Vec<i32> = range
-                        .choose_multiple(&mut rng, buffer_size)
-                        .cloned()
-                        .collect();
-                    json!({ "id_in": random_ids, "perPage": buffer_size })
-                }
-            };
-
-            let response = api::fetch_media(variables).await?;
-            if let Some(page) = response.data.page {
-                let media_list = page.media;
-
-                if media_list.is_empty() {
-                    println!("No results found.");
-                    return Ok(());
-                }
-
-                let display_count = per_page as usize;
-                for (i, media) in media_list.iter().take(display_count).enumerate() {
-                    let title = media.preferred_title();
-                    let score = media
-                        .average_score
-                        .map(|s| s.to_string())
-                        .unwrap_or_else(|| "N/A".to_string());
-                    let episodes = media
-                        .episodes
-                        .map(|e| e.to_string())
-                        .unwrap_or_else(|| "?".to_string());
-                    println!("\n{}. {} (Score: {}%)", i + 1, title, score);
-                    println!("   Episodes: {} | ID: {}", episodes, media.id);
-                }
-            }
-        }
-        Commands::Play { url, title } => {
-            let player = crate::player::mpv::MpvPlayer;
-            let options = crate::player::traits::PlayOptions {
-                url,
-                title,
-                ..Default::default()
-            };
-
-            if let Err(e) = player.play(options, None).await {
-                eprintln!("❌ Playback failed: {}", e);
-            }
-        }
-        Commands::Watch { query, episode } => {
-            perform_watch(query, episode, None, &config_manager).await?;
-        }
-        Commands::Tui => {
-            run_tui(config_manager).await?;
         }
     }
 
     Ok(())
 }
 
-async fn run_tui(mut config_manager: ConfigManager) -> anyhow::Result<()> {
+async fn run_tui(config_manager: ConfigManager) -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new(config_manager.config.clone());
+    let mut app = App::new(config_manager);
     app.init_image_picker();
 
-    if app.config.general.check_updates {
-        let update_tx = app.update_tx.clone();
+    if app.config_manager.config.general.check_updates {
+        let tx = app.action_tx.clone();
         tokio::spawn(async move {
             if let Ok(Some(version)) = api::check_for_updates().await {
-                let _ = update_tx.send(version);
+                let _ = tx.send(Action::UpdateAvailable(version));
             }
         });
     }
@@ -248,111 +102,153 @@ async fn run_tui(mut config_manager: ConfigManager) -> anyhow::Result<()> {
     loop {
         terminal.draw(|f| tui::ui::draw(f, &mut app))?;
 
-        if let Ok(version) = app.update_rx.try_recv() {
-            app.new_version = Some(version);
-            app.show_update_modal = true;
+        let mut input_event = None;
+        if crossterm::event::poll(Duration::from_millis(16))? {
+            input_event = Some(crossterm::event::read()?);
         }
 
-        match tui::events::handle_input()? {
-            TuiEvent::Tick => {
-                app.on_tick();
-            }
-            TuiEvent::Quit => {
-                if matches!(app.list_mode, ListMode::MainMenu) {
-                    app.running = false;
-                } else {
-                    app.reset_to_main_menu();
-                }
-            }
-            TuiEvent::Key(code) => {
-                use crossterm::event::KeyCode;
-
+        if let Some(Event::Key(key)) = input_event {
+            if key.kind == event::KeyEventKind::Press {
                 if app.show_update_modal {
-                    match code {
+                    match key.code {
                         KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
                             app.show_update_modal = false;
                         }
                         _ => {}
                     }
-                    continue;
-                }
-
-                if code == KeyCode::Char('/') {
-                    let current_focus = app.focus.clone();
-                    match current_focus {
-                        Focus::List => app.focus = Focus::SearchBar,
-                        Focus::SearchBar => app.focus = Focus::List,
-                    }
-                    continue;
-                }
-
-                let is_back_key = matches!(code, KeyCode::Esc)
-                    || (matches!(code, KeyCode::Backspace) && app.focus == Focus::List);
-                if is_back_key {
-                    app.go_back();
-                    continue;
-                }
-
-                let current_focus = app.focus.clone();
-                match current_focus {
-                    Focus::SearchBar => match code {
-                        KeyCode::Char(c) => app.search_query.push(c),
-                        KeyCode::Backspace => {
-                            app.search_query.pop();
-                        }
-                        KeyCode::Enter => {
-                            if !app.search_query.is_empty() {
-                                let q = app.search_query.clone();
-                                app.set_status(format!("Searching for '{}'...", q));
-                                app.is_loading = true;
-                                terminal.draw(|f| tui::ui::draw(f, &mut app))?;
-
-                                if let Ok(res) = api::fetch_media(json!({
-                                    "search": q, "perPage": 20, "sort": "POPULARITY_DESC"
-                                }))
-                                .await
-                                {
-                                    if let Some(page) = res.data.page {
-                                        app.media_list = page.media;
-                                        app.go_to_mode(ListMode::SearchResults, true);
-                                        app.active_media = None;
-                                        app.focus = Focus::List;
-                                        app.clear_status();
-                                        update_preview(&mut app);
-                                    }
-                                } else {
-                                    app.set_status("Search failed.");
+                } else {
+                    match app.focus {
+                        Focus::SearchBar => match key.code {
+                            KeyCode::Enter => {
+                                if !app.search_query.is_empty() {
+                                    app.action_tx.send(Action::SearchStarted)?;
+                                    let query = app.search_query.clone();
+                                    let tx = app.action_tx.clone();
+                                    tokio::spawn(async move {
+                                        match api::fetch_media(serde_json::json!({
+                                            "search": query, "perPage": 20, "sort": "POPULARITY_DESC"
+                                        })).await {
+                                            Ok(res) => {
+                                                if let Some(page) = res.data.page {
+                                                    let _ = tx.send(Action::SearchCompleted(page.media, None));
+                                                }
+                                            }
+                                            Err(e) => {
+                                                let _ = tx.send(Action::SearchError(e.to_string()));
+                                            }
+                                        }
+                                    });
                                 }
-                                app.is_loading = false;
                             }
-                        }
-                        _ => {}
-                    },
-                    Focus::List => match code {
-                        KeyCode::Char('j') | KeyCode::Down => {
-                            app.next();
-                            update_preview(&mut app);
-                        }
-                        KeyCode::Char('k') | KeyCode::Up => {
-                            app.previous();
-                            update_preview(&mut app);
-                        }
-                        KeyCode::Char('J') | KeyCode::PageDown => {
-                            app.jump_forward(10);
-                            update_preview(&mut app);
-                        }
-                        KeyCode::Char('K') | KeyCode::PageUp => {
-                            app.jump_backward(10);
-                            update_preview(&mut app);
-                        }
-                        KeyCode::Char('h') => {
-                            app.reset_to_main_menu();
-                        }
-                        KeyCode::Enter => {
-                            handle_enter(&mut app, &mut terminal, &mut config_manager).await;
-                        }
-                        _ => {}
-                    },
+                            KeyCode::Char(c) => {
+                                app.search_query.push(c);
+                            }
+                            KeyCode::Backspace => {
+                                app.search_query.pop();
+                            }
+                            KeyCode::Esc => {
+                                app.focus = Focus::List;
+                            }
+                            _ => {}
+                        },
+                        Focus::List => match key.code {
+                            KeyCode::Char('q') => app.action_tx.send(Action::Quit)?,
+                            KeyCode::Char('/') => app.action_tx.send(Action::ToggleFocus)?,
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                app.action_tx.send(Action::NavigateDown)?
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                app.action_tx.send(Action::NavigateUp)?
+                            }
+                            KeyCode::PageDown | KeyCode::Char('J') => {
+                                app.action_tx.send(Action::NavigatePageDown)?
+                            }
+                            KeyCode::PageUp | KeyCode::Char('K') => {
+                                app.action_tx.send(Action::NavigatePageUp)?
+                            }
+                            KeyCode::Enter => app.action_tx.send(Action::Select)?,
+                            KeyCode::Esc => app.action_tx.send(Action::GoBack)?,
+                            KeyCode::Backspace => app.action_tx.send(Action::GoBack)?,
+                            _ => {}
+                        },
+                    }
+                }
+            }
+        } else {
+            app.action_tx.send(Action::Tick)?;
+        }
+
+        while let Ok(action) = app.action_rx.try_recv() {
+            match action {
+                Action::Tick => app.on_tick(),
+                Action::Quit => app.running = false,
+                Action::ToggleFocus => {
+                    app.focus = match app.focus {
+                        Focus::List => Focus::SearchBar,
+                        Focus::SearchBar => Focus::List,
+                    };
+                }
+                Action::NavigateDown => {
+                    app.next();
+                    update_preview(&mut app);
+                }
+                Action::NavigateUp => {
+                    app.previous();
+                    update_preview(&mut app);
+                }
+                Action::NavigatePageDown => {
+                    app.jump_forward(10);
+                    update_preview(&mut app);
+                }
+                Action::NavigatePageUp => {
+                    app.jump_backward(10);
+                    update_preview(&mut app);
+                }
+                Action::GoBack => app.go_back(),
+                Action::SearchStarted => {
+                    app.is_loading = true;
+                    app.status_message = Some("Searching...".into());
+                }
+                Action::SearchCompleted(media, title_opt) => {
+                    app.is_loading = false;
+                    app.media_list = media;
+                    if let Some(title) = title_opt {
+                        app.go_to_mode(ListMode::AnimeList(title), true);
+                    } else {
+                        app.go_to_mode(ListMode::SearchResults, true);
+                    }
+                    app.focus = Focus::List;
+                    app.active_media = None;
+                    update_preview(&mut app);
+                }
+                Action::SearchError(err) => {
+                    app.is_loading = false;
+                    app.status_message = Some(err);
+                }
+                Action::UpdateAvailable(version) => {
+                    app.new_version = Some(version);
+                    app.show_update_modal = true;
+                }
+                Action::StreamStarted => {
+                    app.go_to_mode(ListMode::StreamLogging, false);
+                    app.log_stream("Starting Stream Process...".into());
+                }
+                Action::StreamLog(msg) => {
+                    app.log_stream(msg);
+                }
+                Action::StreamFinished => {
+                    app.go_back();
+                    terminal.clear()?;
+                }
+                Action::Select => handle_selection(&mut app)?,
+                Action::ImageLoaded(bytes) => {
+                    if let Some(picker) = &mut app.image_picker
+                        && let Ok(img) = image::load_from_memory(&bytes)
+                    {
+                        let protocol = picker.new_resize_protocol(img);
+                        app.current_cover_image = Some(protocol);
+                    }
+                    app.is_fetching_image = false;
                 }
             }
         }
@@ -369,7 +265,6 @@ async fn run_tui(mut config_manager: ConfigManager) -> anyhow::Result<()> {
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
-
     Ok(())
 }
 
@@ -384,263 +279,147 @@ fn update_preview(app: &mut App) {
             if app.active_media.as_ref().map(|m| m.id) != Some(media.id) {
                 app.active_media = Some(media.clone());
                 app.current_cover_image = None;
-                app.is_fetching_image = true;
 
                 if let Some(cover) = media.cover_image {
-                    let url = cover.extra_large.or(cover.large).or(cover.medium);
-                    if let Some(url_str) = url {
-                        let tx = app.image_tx.clone();
+                    let url_opt = cover.extra_large.or(cover.large).or(cover.medium);
+                    if let Some(url) = url_opt {
+                        app.is_fetching_image = true;
+                        let tx = app.action_tx.clone();
                         tokio::task::spawn_blocking(move || {
-                            if let Ok(resp) = reqwest::blocking::get(url_str)
+                            if let Ok(resp) = reqwest::blocking::get(url)
                                 && let Ok(bytes) = resp.bytes()
                             {
-                                let _ = tx.send(bytes.to_vec());
+                                let _ = tx.send(Action::ImageLoaded(bytes.to_vec()));
                             }
                         });
-                    } else {
-                        app.is_fetching_image = false;
                     }
-                } else {
-                    app.is_fetching_image = false;
                 }
             }
         }
     }
 }
 
-async fn handle_enter<B: ratatui::backend::Backend + std::io::Write>(
-    app: &mut App,
-    terminal: &mut Terminal<B>,
-    config_manager: &mut ConfigManager,
-) {
-    let current_mode = app.list_mode.clone();
-    match current_mode {
+fn handle_selection(app: &mut App) -> Result<()> {
+    match app.list_mode.clone() {
         ListMode::MainMenu => {
             let idx = app.get_selected_index();
-            if idx >= app.main_menu_items.len() {
-                return;
+            if idx < app.main_menu_items.len() {
+                let item = &app.main_menu_items[idx];
+                if item == &t!("main_menu.exit") {
+                    app.running = false;
+                } else if item == &t!("main_menu.trending") {
+                    app.action_tx.send(Action::SearchStarted)?;
+                    let tx = app.action_tx.clone();
+                    tokio::spawn(async move {
+                        match api::fetch_media(
+                            serde_json::json!({ "perPage": 20, "sort": "TRENDING_DESC" }),
+                        )
+                        .await
+                        {
+                            Ok(res) => {
+                                if let Some(p) = res.data.page {
+                                    let _ = tx.send(Action::SearchCompleted(
+                                        p.media,
+                                        Some("Trending".into()),
+                                    ));
+                                }
+                            }
+                            Err(e) => {
+                                let _ = tx.send(Action::SearchError(e.to_string()));
+                            }
+                        }
+                    });
+                } else if item == &t!("main_menu.popular") {
+                    app.action_tx.send(Action::SearchStarted)?;
+                    let tx = app.action_tx.clone();
+                    tokio::spawn(async move {
+                        match api::fetch_media(
+                            serde_json::json!({ "perPage": 20, "sort": "POPULARITY_DESC" }),
+                        )
+                        .await
+                        {
+                            Ok(res) => {
+                                if let Some(p) = res.data.page {
+                                    let _ = tx.send(Action::SearchCompleted(
+                                        p.media,
+                                        Some("Popular".into()),
+                                    ));
+                                }
+                            }
+                            Err(e) => {
+                                let _ = tx.send(Action::SearchError(e.to_string()));
+                            }
+                        }
+                    });
+                } else if item == &t!("main_menu.options") {
+                    app.go_to_mode(ListMode::Options, true);
+                }
             }
-            let item = app.main_menu_items[idx].clone();
-
-            app.set_status(format!("Loading {}...", item));
-            let _ = terminal.draw(|f| tui::ui::draw(f, app));
-            if item == t!("main_menu.exit") {
-                app.running = false;
-            } else if item == t!("main_menu.options") {
-                app.go_to_mode(ListMode::Options, true);
-            } else if item == t!("main_menu.trending") {
-                if let Ok(res) =
-                    api::fetch_media(json!({ "perPage": 20, "sort": "TRENDING_DESC" })).await
-                    && let Some(page) = res.data.page
-                {
-                    app.media_list = page.media;
-                    app.active_media = None;
-                    app.go_to_mode(ListMode::AnimeList("Trending".into()), true);
-                    update_preview(app);
-                }
-            } else if item == t!("main_menu.popular") {
-                if let Ok(res) =
-                    api::fetch_media(json!({ "perPage": 20, "sort": "POPULARITY_DESC" })).await
-                    && let Some(page) = res.data.page
-                {
-                    app.media_list = page.media;
-                    app.active_media = None;
-                    app.go_to_mode(ListMode::AnimeList("Popular".into()), true);
-                    update_preview(app);
-                }
-            } else if item == t!("main_menu.random") {
-                let buffer_size = 20;
-                let mut rng = thread_rng();
-                let range: Vec<i32> = (1..18000).collect();
-                let random_ids: Vec<i32> = range
-                    .choose_multiple(&mut rng, buffer_size)
-                    .cloned()
-                    .collect();
-                if let Ok(res) =
-                    api::fetch_media(json!({ "id_in": random_ids, "perPage": buffer_size })).await
-                    && let Some(page) = res.data.page
-                {
-                    app.media_list = page.media;
-                    app.active_media = None;
-                    app.go_to_mode(ListMode::AnimeList("Random".into()), true);
-                    update_preview(app);
-                }
-            } else {
-                app.set_status("Feature coming soon!");
+        }
+        ListMode::SearchResults | ListMode::AnimeList(_) => {
+            let idx = app.get_selected_index();
+            if idx < app.media_list.len() {
+                app.active_media = Some(app.media_list[idx].clone());
+                app.go_to_mode(ListMode::AnimeActions, true);
             }
-            app.clear_status();
+        }
+        ListMode::AnimeActions => {
+            let idx = app.get_selected_index();
+            if idx < app.anime_action_items.len() {
+                let action = &app.anime_action_items[idx];
+                if action == &t!("actions.stream") {
+                    if let Some(media) = app.active_media.clone() {
+                        start_stream_task(app, media, "1".to_string());
+                    }
+                } else if action == &t!("actions.episodes") {
+                    app.go_to_mode(ListMode::EpisodeSelect, true);
+                } else {
+                    app.go_to_mode(ListMode::SubMenu(action.clone()), true);
+                }
+            }
+        }
+        ListMode::EpisodeSelect => {
+            let ep_num = (app.get_selected_index() + 1).to_string();
+            if let Some(media) = app.active_media.clone() {
+                start_stream_task(app, media, ep_num);
+            }
         }
         ListMode::Options => {
             let idx = app.get_selected_index();
             match idx {
                 0 => {
                     let qualities = ["1080", "720", "480"];
-                    let current = app.config.stream.quality.as_str();
+                    let current = app.config_manager.config.stream.quality.as_str();
                     if let Some(pos) = qualities.iter().position(|&q| q == current) {
                         let next = (pos + 1) % qualities.len();
-                        app.config.stream.quality = qualities[next].to_string();
-                    } else {
-                        app.config.stream.quality = "1080".to_string();
+                        app.config_manager.config.stream.quality = qualities[next].to_string();
                     }
                 }
                 1 => {
                     let types = ["sub", "dub"];
-                    let current = app.config.stream.translation_type.as_str();
+                    let current = app.config_manager.config.stream.translation_type.as_str();
                     if let Some(pos) = types.iter().position(|&t| t == current) {
                         let next = (pos + 1) % types.len();
-                        app.config.stream.translation_type = types[next].to_string();
-                    } else {
-                        app.config.stream.translation_type = "sub".to_string();
+                        app.config_manager.config.stream.translation_type = types[next].to_string();
                     }
                 }
                 2 => {
                     let langs = ["en", "es", "pt", "fr", "id", "ru"];
-                    let current = app.config.general.language.as_str();
+                    let current = app.config_manager.config.general.language.as_str();
                     if let Some(pos) = langs.iter().position(|&l| l == current) {
                         let next = (pos + 1) % langs.len();
-                        app.config.general.language = langs[next].to_string();
-                        rust_i18n::set_locale(&app.config.general.language);
+                        app.config_manager.config.general.language = langs[next].to_string();
+                        rust_i18n::set_locale(&app.config_manager.config.general.language);
                         app.update_localized_items();
                     }
                 }
                 _ => {}
             }
-
-            config_manager.config = app.config.clone();
-            if let Err(e) = config_manager.save_config() {
-                app.set_status(format!("Failed to save config: {}", e));
-            }
-        }
-        ListMode::SearchResults | ListMode::AnimeList(_) => {
-            if app.active_media.is_some() {
-                app.go_to_mode(ListMode::AnimeActions, true);
-            }
-        }
-        ListMode::AnimeActions => {
-            let idx = app.get_selected_index();
-            if idx >= app.anime_action_items.len() {
-                return;
-            }
-            let action = app.anime_action_items[idx].clone();
-
-            if let Some(media) = app.active_media.clone() {
-                if action == t!("actions.stream") {
-                    let mut next_episode = "1".to_string();
-
-                    if let (Some(token), Some(username)) = (
-                        &config_manager.auth.anilist_token,
-                        &config_manager.auth.username,
-                    ) {
-                        app.set_status("Checking AniList progress...");
-                        terminal.draw(|f| tui::ui::draw(f, app)).unwrap();
-
-                        match api::get_user_progress(token, media.id, username).await {
-                            Ok(Some(progress)) => {
-                                let is_completed =
-                                    media.episodes.is_some_and(|total| progress >= total);
-
-                                if is_completed {
-                                    next_episode = "1".to_string();
-                                    app.set_status(
-                                        "Series completed. Restarting from Episode 1...",
-                                    );
-                                } else {
-                                    next_episode = (progress + 1).to_string();
-                                    app.set_status(format!(
-                                        "Resuming at Episode {}...",
-                                        next_episode
-                                    ));
-                                }
-                            }
-                            Ok(None) => {
-                                app.set_status("Not in list. Starting at Episode 1.");
-                            }
-                            Err(e) => {
-                                app.set_status(format!("Sync failed: {}. Defaulting to Ep 1.", e));
-                            }
-                        }
-                        tokio::time::sleep(Duration::from_millis(800)).await;
-                    } else {
-                        app.set_status("Not logged in. Starting at Episode 1.");
-                        tokio::time::sleep(Duration::from_millis(800)).await;
-                    }
-
-                    suspend_and_watch(
-                        terminal,
-                        media.preferred_title(),
-                        &next_episode,
-                        Some(media.id),
-                        config_manager,
-                    )
-                    .await;
-                    app.clear_status();
-                } else if action == t!("actions.episodes") {
-                    app.go_to_mode(ListMode::EpisodeSelect, true);
-                } else if action == t!("actions.trailer") {
-                    if let Some(trailer) = &media.trailer {
-                        let site = trailer.site.as_deref().unwrap_or("youtube");
-                        let id = trailer.id.as_deref().unwrap_or("");
-                        if site.eq_ignore_ascii_case("youtube") && !id.is_empty() {
-                            let url = format!("https://www.youtube.com/watch?v={}", id);
-                            app.set_status(format!("Opening {}", url));
-                            let _ = std::process::Command::new("open")
-                                .arg(&url)
-                                .spawn()
-                                .or_else(|_| {
-                                    std::process::Command::new("xdg-open").arg(&url).spawn()
-                                });
-                        } else {
-                            app.set_status("No YouTube trailer available.");
-                        }
-                    } else {
-                        app.set_status("No trailer info found.");
-                    }
-                } else {
-                    app.go_to_mode(ListMode::SubMenu(action.to_string()), true);
-                }
-            }
-        }
-        ListMode::EpisodeSelect => {
-            let episode_num = (app.get_selected_index() + 1).to_string();
-            if let Some(media) = app.active_media.clone() {
-                suspend_and_watch(
-                    terminal,
-                    media.preferred_title(),
-                    &episode_num,
-                    Some(media.id),
-                    config_manager,
-                )
-                .await;
-            }
+            app.config_manager.save_config()?;
         }
         _ => {}
     }
-}
-
-async fn suspend_and_watch<B: ratatui::backend::Backend + std::io::Write>(
-    terminal: &mut Terminal<B>,
-    query: &str,
-    ep: &str,
-    anilist_id: Option<i32>,
-    config: &ConfigManager,
-) {
-    let _ = disable_raw_mode();
-    let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
-    let _ = terminal.show_cursor();
-    let _ = io::stdout().flush();
-
-    println!("▶️  Starting Playback: {} Episode {}...", query, ep);
-    if let Err(e) = perform_watch(query.to_string(), ep.to_string(), anilist_id, config).await {
-        println!("❌ Error: {}", e);
-        println!("Press ENTER to continue...");
-        let mut s = String::new();
-        io::stdin().read_line(&mut s).unwrap();
-    }
-
-    let _ = enable_raw_mode();
-    let _ = execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture);
-    let _ = terminal.hide_cursor();
-    let _ = terminal.clear();
+    Ok(())
 }
 
 async fn resolve_stream_for_episode(
@@ -648,7 +427,7 @@ async fn resolve_stream_for_episode(
     show_id: &str,
     show_name: &str,
     episode: &str,
-) -> anyhow::Result<Option<PlayOptions>> {
+) -> Result<Option<PlayOptions>> {
     let sources = provider.get_episode_sources(show_id, episode).await?;
     let priorities = ["S-mp4", "Luf-mp4", "Luf-Mp4", "Sak", "Default", "Yt-mp4"];
 
@@ -666,127 +445,178 @@ async fn resolve_stream_for_episode(
     Ok(None)
 }
 
-async fn perform_watch(
-    query: String,
-    episode: String,
-    anilist_id: Option<i32>,
-    config: &ConfigManager,
-) -> anyhow::Result<()> {
-    let provider = Arc::new(AllAnimeProvider::new(
-        config.config.stream.translation_type.clone(),
-    ));
+fn start_stream_task(app: &App, media: crate::models::Media, episode: String) {
+    let tx = app.action_tx.clone();
+    let config = app.config_manager.clone();
 
-    println!("🔎 Searching AllAnime for '{}'...", query);
+    let _ = tx.send(Action::StreamStarted);
 
-    let results = provider.search(&query).await?;
+    tokio::spawn(async move {
+        let query = media.preferred_title();
+        let _ = tx.send(Action::StreamLog(format!(
+            "Searching AllAnime for '{}'...",
+            query
+        )));
 
-    let best_match = results.iter().max_by(|a, b| {
-        let name_a = normalizer::normalize("allanime", &a.name);
-        let name_b = normalizer::normalize("allanime", &b.name);
+        let provider = Arc::new(crate::provider::allanime::AllAnimeProvider::new(
+            config.config.stream.translation_type.clone(),
+        ));
 
-        debug!("Comparing: '{}' vs '{}'", name_a, name_b);
+        match provider.search(query).await {
+            Ok(results) => {
+                let best_match = results.iter().max_by(|a, b| {
+                    let name_a = normalizer::normalize("allanime", &a.name);
+                    let name_b = normalizer::normalize("allanime", &b.name);
+                    let score_a =
+                        normalized_levenshtein(&name_a.to_lowercase(), &query.to_lowercase());
+                    let score_b =
+                        normalized_levenshtein(&name_b.to_lowercase(), &query.to_lowercase());
+                    score_a
+                        .partial_cmp(&score_b)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
 
-        let score_a = normalized_levenshtein(&name_a.to_lowercase(), &query.to_lowercase());
-        let score_b = normalized_levenshtein(&name_b.to_lowercase(), &query.to_lowercase());
+                if let Some(show) = best_match {
+                    let _ = tx.send(Action::StreamLog(format!(
+                        "Found: {} (ID: {})",
+                        show.name, show.id
+                    )));
 
-        score_a
-            .partial_cmp(&score_b)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+                    let show_id = show.id.clone();
+                    let show_name = show.name.clone();
 
-    if let Some(show) = best_match {
-        info!("Selected Show: {} (ID: {})", show.name, show.id);
-        println!("Found: {} (ID: {})", show.name, show.id);
+                    let _ = tx.send(Action::StreamLog(format!(
+                        "Fetching Episode {}...",
+                        episode
+                    )));
 
-        let show_id = show.id.clone();
-        let show_name = show.name.clone();
-        let provider_clone = provider.clone();
+                    match resolve_stream_for_episode(&provider, &show_id, &show_name, &episode)
+                        .await
+                    {
+                        Ok(Some(options)) => {
+                            let _ = tx.send(Action::StreamLog(
+                                "Stream found. Launching Player...".into(),
+                            ));
 
-        println!("📺 Fetching Episode {}...", episode);
-        if let Some(options) =
-            resolve_stream_for_episode(&provider, &show_id, &show_name, &episode).await?
-        {
-            let current_ep_num =
-                std::sync::Arc::new(tokio::sync::Mutex::new(episode.parse::<i32>().unwrap_or(1)));
+                            let current_ep_num = Arc::new(tokio::sync::Mutex::new(
+                                episode.parse::<i32>().unwrap_or(1),
+                            ));
+                            let provider_clone = provider.clone();
+                            let s_id = show_id.clone();
+                            let s_name = show_name.clone();
 
-            let navigator: EpisodeNavigator = {
-                let p = provider_clone.clone();
-                let s_id = show_id.clone();
-                let s_name = show_name.clone();
-                let ep_num_store = current_ep_num.clone();
+                            let navigator: EpisodeNavigator = {
+                                let ep_store = current_ep_num.clone();
+                                Box::new(move |action| {
+                                    let p = provider_clone.clone();
+                                    let s_id = s_id.clone();
+                                    let s_name = s_name.clone();
+                                    let ep_store = ep_store.clone();
+                                    Box::pin(async move {
+                                        let mut num = ep_store.lock().await;
+                                        match action {
+                                            EpisodeAction::Next => *num += 1,
+                                            EpisodeAction::Previous => {
+                                                if *num > 1 {
+                                                    *num -= 1;
+                                                } else {
+                                                    return Ok(None);
+                                                }
+                                            }
+                                        }
+                                        resolve_stream_for_episode(
+                                            &p,
+                                            &s_id,
+                                            &s_name,
+                                            &num.to_string(),
+                                        )
+                                        .await
+                                    })
+                                })
+                            };
 
-                Box::new(move |action| {
-                    let p = p.clone();
-                    let s_id = s_id.clone();
-                    let s_name = s_name.clone();
-                    let ep_store = ep_num_store.clone();
+                            let player = crate::player::mpv::MpvPlayer;
+                            match player.play(options, Some(navigator)).await {
+                                Ok(percentage) => {
+                                    let _ = tx.send(Action::StreamLog(format!(
+                                        "Finished. Progress: {:.1}%",
+                                        percentage
+                                    )));
 
-                    Box::pin(async move {
-                        let mut num = ep_store.lock().await;
+                                    let final_ep_num = *current_ep_num.lock().await;
+                                    let required_percentage =
+                                        config.config.stream.episode_complete_at as f64;
 
-                        match action {
-                            EpisodeAction::Next => *num += 1,
-                            EpisodeAction::Previous => {
-                                if *num > 1 {
-                                    *num -= 1;
-                                } else {
-                                    return Ok(None);
+                                    if percentage >= required_percentage {
+                                        if let (Some(token), Some(username)) =
+                                            (&config.auth.anilist_token, &config.auth.username)
+                                        {
+                                            let _ = tx.send(Action::StreamLog(
+                                                "Updating AniList...".into(),
+                                            ));
+                                            match api::get_user_progress(token, media.id, username)
+                                                .await
+                                            {
+                                                Ok(current_progress) => {
+                                                    let prog = current_progress.unwrap_or(0);
+                                                    if final_ep_num > prog {
+                                                        if let Err(e) = api::update_user_entry(
+                                                            token,
+                                                            media.id,
+                                                            final_ep_num,
+                                                            "CURRENT",
+                                                        )
+                                                        .await
+                                                        {
+                                                            let _ = tx.send(Action::StreamLog(
+                                                                format!(
+                                                                    "AniList Update Failed: {}",
+                                                                    e
+                                                                ),
+                                                            ));
+                                                        } else {
+                                                            let _ = tx.send(Action::StreamLog(
+                                                                format!(
+                                                                    "AniList Updated to Ep {}",
+                                                                    final_ep_num
+                                                                ),
+                                                            ));
+                                                        }
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    let _ = tx.send(Action::StreamLog(format!(
+                                                        "AniList Sync Error: {}",
+                                                        e
+                                                    )));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    let _ =
+                                        tx.send(Action::StreamLog(format!("Player Error: {}", e)));
                                 }
                             }
                         }
-
-                        let next_ep_str = num.to_string();
-                        resolve_stream_for_episode(&p, &s_id, &s_name, &next_ep_str).await
-                    })
-                })
-            };
-
-            let player = crate::player::mpv::MpvPlayer;
-
-            match player.play(options, Some(navigator)).await {
-                Ok(percentage) => {
-                    println!("\n✅ Playback finished. Max progress: {:.1}%", percentage);
-
-                    let final_ep_num = *current_ep_num.lock().await;
-                    let required_percentage = config.config.stream.episode_complete_at as f64;
-
-                    if percentage >= required_percentage {
-                        if let (Some(token), Some(username), Some(id)) = (
-                            &config.auth.anilist_token,
-                            &config.auth.username,
-                            anilist_id,
-                        ) {
-                            let current_progress = api::get_user_progress(token, id, username)
-                                .await?
-                                .unwrap_or(0);
-
-                            if final_ep_num > current_progress {
-                                println!(
-                                    "📝 Updating AniList progress to Episode {}...",
-                                    final_ep_num
-                                );
-                                api::update_user_entry(token, id, final_ep_num, "CURRENT").await?;
-                            } else {
-                                println!(
-                                    "ℹ️  Already watched episode {} (Progress: {}). Skipping update.",
-                                    final_ep_num, current_progress
-                                );
-                            }
+                        Ok(None) => {
+                            let _ = tx.send(Action::StreamLog("No stream found.".into()));
                         }
-                    } else {
-                        println!(
-                            "⚠️  Watched less than {}%. Not marking as complete.",
-                            required_percentage
-                        );
+                        Err(e) => {
+                            let _ = tx.send(Action::StreamLog(format!("Source Error: {}", e)));
+                        }
                     }
+                } else {
+                    let _ = tx.send(Action::StreamLog("No results found.".into()));
                 }
-                Err(e) => eprintln!("Player error: {}", e),
             }
-        } else {
-            anyhow::bail!("No streams found.");
+            Err(e) => {
+                let _ = tx.send(Action::StreamLog(format!("Search Error: {}", e)));
+            }
         }
-    } else {
-        anyhow::bail!("No results found on AllAnime");
-    }
-    Ok(())
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let _ = tx.send(Action::StreamFinished);
+    });
 }

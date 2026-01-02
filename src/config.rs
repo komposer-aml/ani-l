@@ -66,6 +66,7 @@ impl Default for Config {
     }
 }
 
+#[derive(Clone)]
 pub struct ConfigManager {
     #[allow(dead_code)]
     pub config_path: PathBuf,
