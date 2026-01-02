@@ -173,7 +173,7 @@ fn draw_left_panel(f: &mut Frame, area: Rect, app: &mut App) {
                 Span::raw(format!(
                     "{}{}{}",
                     media.formatted_start_date(),
-                    t!("ui_details.to").to_string(),
+                    t!("ui_details.to"),
                     media.formatted_end_date()
                 )),
             ]),
