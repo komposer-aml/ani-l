@@ -236,8 +236,25 @@ async fn run_tui(mut config_manager: ConfigManager) -> anyhow::Result<()> {
     let mut app = App::new(config_manager.config.clone());
     app.init_image_picker();
 
+    if app.config.general.check_updates {
+        let update_tx = app.update_tx.clone();
+        tokio::spawn(async move {
+            match api::check_for_updates().await {
+                Ok(Some(version)) => {
+                    let _ = update_tx.send(version);
+                }
+                _ => {}
+            }
+        });
+    }
+
     loop {
         terminal.draw(|f| tui::ui::draw(f, &mut app))?;
+
+        if let Ok(version) = app.update_rx.try_recv() {
+            app.new_version = Some(version);
+            app.show_update_modal = true;
+        }
 
         match tui::events::handle_input()? {
             TuiEvent::Tick => {
@@ -252,6 +269,16 @@ async fn run_tui(mut config_manager: ConfigManager) -> anyhow::Result<()> {
             }
             TuiEvent::Key(code) => {
                 use crossterm::event::KeyCode;
+
+                if app.show_update_modal {
+                    match code {
+                        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
+                            app.show_update_modal = false;
+                        }
+                        _ => {}
+                    }
+                    continue;
+                }
 
                 if code == KeyCode::Char('/') {
                     let current_focus = app.focus.clone();

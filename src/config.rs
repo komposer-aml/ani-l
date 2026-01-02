@@ -22,18 +22,24 @@ pub struct GeneralConfig {
     pub provider: String,
     #[serde(default = "default_language")]
     pub language: String,
+    #[serde(default = "default_check_updates")]
+    pub check_updates: bool,
 }
 
 fn default_language() -> String {
     "en".to_string()
 }
 
+fn default_check_updates() -> bool {
+    true
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StreamConfig {
     pub player: String,
-    pub quality: String,          // "1080", "720", "480"
-    pub translation_type: String, // "sub", "dub"
-    pub episode_complete_at: u8,  // Percentage (0-100)
+    pub quality: String,
+    pub translation_type: String,
+    pub episode_complete_at: u8,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -48,6 +54,7 @@ impl Default for Config {
             general: GeneralConfig {
                 provider: "allanime".to_string(),
                 language: "en".to_string(),
+                check_updates: true,
             },
             stream: StreamConfig {
                 player: "mpv".to_string(),
@@ -334,6 +341,7 @@ mod tests {
 
         assert_eq!(config.general.provider, "allanime");
         assert_eq!(config.general.language, "en");
+        assert_eq!(config.general.check_updates, true);
         assert_eq!(config.stream.player, "mpv");
         assert_eq!(config.stream.quality, "1080");
         assert_eq!(config.stream.translation_type, "sub");

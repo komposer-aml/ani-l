@@ -119,6 +119,42 @@ pub async fn get_user_progress(token: &str, media_id: i32, username: &str) -> Re
     Ok(data.data.media_list.and_then(|entry| entry.progress))
 }
 
+pub async fn check_for_updates() -> Result<Option<String>> {
+    let client = reqwest::Client::new();
+    let url = "https://crates.io/api/v1/crates/ani-l";
+
+    let resp = client
+        .get(url)
+        .header("User-Agent", "ani-l (github.com/komposer-aml/ani-l)")
+        .send()
+        .await?
+        .json::<Value>()
+        .await?;
+
+    if let Some(max_version) = resp
+        .get("crate")
+        .and_then(|c| c.get("max_version"))
+        .and_then(|v| v.as_str())
+    {
+        let current_version = env!("CARGO_PKG_VERSION");
+
+        let parse_version = |s: &str| -> Vec<u32> {
+            s.split('.')
+                .filter_map(|part| part.parse::<u32>().ok())
+                .collect()
+        };
+
+        let remote_parts = parse_version(max_version);
+        let local_parts = parse_version(current_version);
+
+        if remote_parts > local_parts {
+            return Ok(Some(max_version.to_string()));
+        }
+    }
+
+    Ok(None)
+}
+
 async fn send_request(
     query: &str,
     variables: Value,

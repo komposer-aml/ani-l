@@ -50,6 +50,11 @@ pub struct App {
     pub image_rx: Receiver<Vec<u8>>,
     pub is_fetching_image: bool,
 
+    pub update_tx: Sender<String>,
+    pub update_rx: Receiver<String>,
+    pub new_version: Option<String>,
+    pub show_update_modal: bool,
+
     pub config: Config,
 }
 
@@ -59,6 +64,7 @@ impl App {
         list_state.select(Some(0));
 
         let (tx, rx) = std::sync::mpsc::channel();
+        let (update_tx, update_rx) = std::sync::mpsc::channel();
 
         let mut app = Self {
             running: true,
@@ -79,6 +85,10 @@ impl App {
             image_tx: tx,
             image_rx: rx,
             is_fetching_image: false,
+            update_tx,
+            update_rx,
+            new_version: None,
+            show_update_modal: false,
             config,
         };
 

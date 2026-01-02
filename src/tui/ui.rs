@@ -5,7 +5,7 @@ use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{
-        Block, Borders, List, ListItem, Paragraph, Wrap,
+        Block, Borders, Clear, List, ListItem, Paragraph, Wrap,
         canvas::{Canvas, Line as CanvasLine},
     },
 };
@@ -30,6 +30,10 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     draw_search_bar(f, right_chunks[0], app);
     draw_list_panel(f, right_chunks[1], app);
     draw_status_bar(f, right_chunks[2], app);
+
+    if app.show_update_modal {
+        draw_update_modal(f, app);
+    }
 }
 
 fn draw_status_bar(f: &mut Frame, area: Rect, app: &App) {
@@ -369,4 +373,78 @@ fn draw_cube(f: &mut Frame, area: Rect, angle: f64) {
             ctx.print(0.0, -1.5, "ani-l");
         });
     f.render_widget(canvas, area);
+}
+
+fn draw_update_modal(f: &mut Frame, app: &App) {
+    if let Some(new_ver) = &app.new_version {
+        let area = centered_rect(60, 20, f.area());
+
+        f.render_widget(Clear, area);
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(" 🚀 Update Available ")
+            .style(Style::default().bg(Color::DarkGray).fg(Color::White));
+
+        let text = vec![
+            Line::from(""),
+            Line::from(vec![
+                Span::raw("A new version of "),
+                Span::styled(
+                    "ani-l",
+                    Style::default()
+                        .add_modifier(Modifier::BOLD)
+                        .fg(Color::Cyan),
+                ),
+                Span::raw(" is available!"),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::raw("Current Version: "),
+                Span::styled(env!("CARGO_PKG_VERSION"), Style::default().fg(Color::Red)),
+            ]),
+            Line::from(vec![
+                Span::raw("Latest Version:  "),
+                Span::styled(new_ver, Style::default().fg(Color::Green)),
+            ]),
+            Line::from(""),
+            Line::from("To update, run:"),
+            Line::from(Span::styled(
+                "cargo install ani-l",
+                Style::default().bg(Color::Black).fg(Color::Yellow),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Press [ESC] or [Enter] to close",
+                Style::default().fg(Color::Gray),
+            )),
+        ];
+
+        let paragraph = Paragraph::new(text)
+            .block(block)
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true });
+
+        f.render_widget(paragraph, area);
+    }
+}
+
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
 }
