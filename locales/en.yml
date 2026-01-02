@@ -30,6 +30,7 @@ titles:
   options: " Options "
   search: " Search "
   ani_l: " Ani-L "
+  stream_logs: " Stream Logs "
 
 ui:
   loading: " ⏳ Loading... "
@@ -43,6 +44,52 @@ ui:
   description: "Description:"
   search_placeholder: "Press '/' to search..."
   episode_prefix: "Episode %{num}"
+
+status:
+  searching: "Searching..."
+  loading_image: "Loading Image..."
+  no_image_found: "No Image Found"
+  terminal_not_supported: "Terminal not supported.\nTry WezTerm, Ghostty, iTerm2 or Kitty."
+  stream_initializing: "Stream Initializing"
+
+ui_details:
+  score: "Score: "
+  favs: "Favs: "
+  status: "Status: "
+  format: "Format: "
+  genres: "Genres: "
+  description: "Description:"
+  details: "Details:"
+  studios: "Studios: "
+  aired: "Aired: "
+  to: " to "
+
+logs:
+  starting_process: "Starting Stream Process..."
+  searching_provider: "Searching AllAnime for '%{query}'..."
+  found: "Found: %{name} (ID: %{id})"
+  fetching_episode: "Fetching Episode %{ep}..."
+  stream_found: "Stream found. Launching Player..."
+  finished: "Finished. Progress: %{prog}%"
+  updating_anilist: "Updating AniList..."
+  update_failed: "AniList Update Failed: %{err}"
+  updated_to_ep: "AniList Updated to Ep %{ep}"
+  sync_error: "AniList Sync Error: %{err}"
+  player_error: "Player Error: %{err}"
+  no_stream: "No stream found."
+  source_error: "Source Error: %{err}"
+  no_results: "No results found."
+  search_error: "Search Error: %{err}"
+
+update:
+  title: " Update Available "
+  new_version: "A new version of "
+  available: " is available!"
+  current_version: "Current Version: "
+  latest_version: "Latest Version:  "
+  instruction: "To update, run:"
+  command: "cargo install ani-l"
+  close: "Press [ESC] or [Enter] to close"
 
 setup:
   welcome: "\n👋 Welcome to ani-l! It looks like this is your first run."

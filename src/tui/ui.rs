@@ -30,7 +30,6 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     draw_list_panel(f, right_col[1], app);
     draw_status_bar(f, right_col[2], app);
 
-    // Modal Overlays
     if app.show_update_modal {
         draw_update_modal(f, app);
     }
@@ -63,11 +62,11 @@ fn draw_left_panel(f: &mut Frame, area: Rect, app: &mut App) {
             f.render_stateful_widget(image, top_layout[0], protocol);
         } else {
             let message = if app.is_fetching_image {
-                "Loading Image..."
+                t!("status.loading_image").to_string()
             } else if app.image_picker.is_none() {
-                "Terminal not supported.\nTry WezTerm, Ghostty, iTerm2 or Kitty."
+                t!("status.terminal_not_supported").to_string()
             } else {
-                "No Image Found"
+                t!("status.no_image_found").to_string()
             };
 
             let placeholder = Paragraph::new(message)
@@ -86,26 +85,38 @@ fn draw_left_panel(f: &mut Frame, area: Rect, app: &mut App) {
             )),
             Line::from(""),
             Line::from(vec![
-                Span::styled("Score: ", Style::default().fg(Color::Cyan)),
+                Span::styled(
+                    t!("ui_details.score").to_string(),
+                    Style::default().fg(Color::Cyan),
+                ),
                 Span::raw(format!("{}%", media.average_score.unwrap_or(0))),
                 Span::raw(" | "),
-                Span::styled("Favs: ", Style::default().fg(Color::Cyan)),
+                Span::styled(
+                    t!("ui_details.favs").to_string(),
+                    Style::default().fg(Color::Cyan),
+                ),
                 Span::raw(format!("{}", media.favourites.unwrap_or(0))),
             ]),
             Line::from(vec![
                 Span::styled("Pop: ", Style::default().fg(Color::Cyan)),
                 Span::raw(format!("{}", media.popularity.unwrap_or(0))),
                 Span::raw(" | "),
-                Span::styled("Status: ", Style::default().fg(Color::Cyan)),
+                Span::styled(
+                    t!("ui_details.status").to_string(),
+                    Style::default().fg(Color::Cyan),
+                ),
                 Span::raw(media.status.clone().unwrap_or("Unknown".into())),
             ]),
             Line::from(vec![
-                Span::styled("Format: ", Style::default().fg(Color::Cyan)),
+                Span::styled(
+                    t!("ui_details.format").to_string(),
+                    Style::default().fg(Color::Cyan),
+                ),
                 Span::raw(media.format.clone().unwrap_or("?".into())),
             ]),
             Line::from("----"),
             Line::from(vec![Span::styled(
-                "Genres: ",
+                t!("ui_details.genres").to_string(),
                 Style::default().fg(Color::Cyan),
             )]),
             Line::from(media.genres.join(", ")),
@@ -122,7 +133,7 @@ fn draw_left_panel(f: &mut Frame, area: Rect, app: &mut App) {
 
         let bottom_text = vec![
             Line::from(Span::styled(
-                "Description:",
+                t!("ui_details.description").to_string(),
                 Style::default()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
@@ -137,9 +148,12 @@ fn draw_left_panel(f: &mut Frame, area: Rect, app: &mut App) {
                     .replace("</i>", ""),
             ),
             Line::from(""),
-            Line::from(Span::styled("Details:", Style::default().fg(Color::Cyan))),
+            Line::from(Span::styled(
+                t!("ui_details.details").to_string(),
+                Style::default().fg(Color::Cyan),
+            )),
             Line::from(vec![
-                Span::raw("Studios: "),
+                Span::raw(t!("ui_details.studios").to_string()),
                 Span::raw(
                     media
                         .studios
@@ -155,10 +169,11 @@ fn draw_left_panel(f: &mut Frame, area: Rect, app: &mut App) {
                 ),
             ]),
             Line::from(vec![
-                Span::raw("Aired: "),
+                Span::raw(t!("ui_details.aired").to_string()),
                 Span::raw(format!(
-                    "{} to {}",
+                    "{}{}{}",
                     media.formatted_start_date(),
+                    t!("ui_details.to").to_string(),
                     media.formatted_end_date()
                 )),
             ]),
@@ -181,7 +196,7 @@ fn draw_stream_logs(f: &mut Frame, app: &App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(" ▶️  Stream Initializing ")
+        .title(t!("status.stream_initializing").to_string())
         .border_style(Style::default().fg(Color::Yellow));
 
     let inner = block.inner(area);
@@ -216,7 +231,7 @@ fn draw_list_panel(f: &mut Frame, area: Rect, app: &mut App) {
         ListMode::AnimeActions => t!("titles.actions").to_string(),
         ListMode::EpisodeSelect => t!("titles.select_episode").to_string(),
         ListMode::Options => t!("titles.options").to_string(),
-        ListMode::StreamLogging => " Stream Logs ".to_string(),
+        ListMode::StreamLogging => t!("titles.stream_logs").to_string(),
         ListMode::AnimeList(t) => format!(" {} ", t),
         ListMode::SubMenu(t) => format!(" {} ", t),
     };
@@ -412,39 +427,39 @@ fn draw_update_modal(f: &mut Frame, app: &App) {
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" 🚀 Update Available ")
+            .title(t!("update.title").to_string())
             .style(Style::default().bg(Color::DarkGray).fg(Color::White));
 
         let text = vec![
             Line::from(""),
             Line::from(vec![
-                Span::raw("A new version of "),
+                Span::raw(t!("update.new_version").to_string()),
                 Span::styled(
                     "ani-l",
                     Style::default()
                         .add_modifier(Modifier::BOLD)
                         .fg(Color::Cyan),
                 ),
-                Span::raw(" is available!"),
+                Span::raw(t!("update.available").to_string()),
             ]),
             Line::from(""),
             Line::from(vec![
-                Span::raw("Current Version: "),
+                Span::raw(t!("update.current_version").to_string()),
                 Span::styled(env!("CARGO_PKG_VERSION"), Style::default().fg(Color::Red)),
             ]),
             Line::from(vec![
-                Span::raw("Latest Version:  "),
+                Span::raw(t!("update.latest_version").to_string()),
                 Span::styled(new_ver, Style::default().fg(Color::Green)),
             ]),
             Line::from(""),
-            Line::from("To update, run:"),
+            Line::from(t!("update.instruction").to_string()),
             Line::from(Span::styled(
-                "cargo install ani-l",
+                t!("update.command").to_string(),
                 Style::default().bg(Color::Black).fg(Color::Yellow),
             )),
             Line::from(""),
             Line::from(Span::styled(
-                "Press [ESC] or [Enter] to close",
+                t!("update.close").to_string(),
                 Style::default().fg(Color::Gray),
             )),
         ];

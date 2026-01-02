@@ -119,6 +119,7 @@ async fn run_tui(config_manager: ConfigManager) -> Result<()> {
                 } else {
                     match app.focus {
                         Focus::SearchBar => match key.code {
+                            KeyCode::Char('/') => app.action_tx.send(Action::ToggleFocus)?,
                             KeyCode::Enter => {
                                 if !app.search_query.is_empty() {
                                     app.action_tx.send(Action::SearchStarted)?;
@@ -207,10 +208,11 @@ async fn run_tui(config_manager: ConfigManager) -> Result<()> {
                 Action::GoBack => app.go_back(),
                 Action::SearchStarted => {
                     app.is_loading = true;
-                    app.status_message = Some("Searching...".into());
+                    app.status_message = Some(t!("status.searching").to_string());
                 }
                 Action::SearchCompleted(media, title_opt) => {
                     app.is_loading = false;
+                    app.status_message = None;
                     app.media_list = media;
                     if let Some(title) = title_opt {
                         app.go_to_mode(ListMode::AnimeList(title), true);
@@ -231,7 +233,7 @@ async fn run_tui(config_manager: ConfigManager) -> Result<()> {
                 }
                 Action::StreamStarted => {
                     app.go_to_mode(ListMode::StreamLogging, false);
-                    app.log_stream("Starting Stream Process...".into());
+                    app.log_stream(t!("logs.starting_process").to_string());
                 }
                 Action::StreamLog(msg) => {
                     app.log_stream(msg);
@@ -320,7 +322,7 @@ fn handle_selection(app: &mut App) -> Result<()> {
                                 if let Some(p) = res.data.page {
                                     let _ = tx.send(Action::SearchCompleted(
                                         p.media,
-                                        Some("Trending".into()),
+                                        Some(t!("main_menu.trending").to_string()),
                                     ));
                                 }
                             }
@@ -342,7 +344,7 @@ fn handle_selection(app: &mut App) -> Result<()> {
                                 if let Some(p) = res.data.page {
                                     let _ = tx.send(Action::SearchCompleted(
                                         p.media,
-                                        Some("Popular".into()),
+                                        Some(t!("main_menu.popular").to_string()),
                                     ));
                                 }
                             }
@@ -453,10 +455,9 @@ fn start_stream_task(app: &App, media: crate::models::Media, episode: String) {
 
     tokio::spawn(async move {
         let query = media.preferred_title();
-        let _ = tx.send(Action::StreamLog(format!(
-            "Searching AllAnime for '{}'...",
-            query
-        )));
+        let _ = tx.send(Action::StreamLog(
+            t!("logs.searching_provider", query = query).to_string(),
+        ));
 
         let provider = Arc::new(crate::provider::allanime::AllAnimeProvider::new(
             config.config.stream.translation_type.clone(),
@@ -477,26 +478,22 @@ fn start_stream_task(app: &App, media: crate::models::Media, episode: String) {
                 });
 
                 if let Some(show) = best_match {
-                    let _ = tx.send(Action::StreamLog(format!(
-                        "Found: {} (ID: {})",
-                        show.name, show.id
-                    )));
+                    let _ = tx.send(Action::StreamLog(
+                        t!("logs.found", name = show.name, id = show.id).to_string(),
+                    ));
 
                     let show_id = show.id.clone();
                     let show_name = show.name.clone();
 
-                    let _ = tx.send(Action::StreamLog(format!(
-                        "Fetching Episode {}...",
-                        episode
-                    )));
+                    let _ = tx.send(Action::StreamLog(
+                        t!("logs.fetching_episode", ep = episode).to_string(),
+                    ));
 
                     match resolve_stream_for_episode(&provider, &show_id, &show_name, &episode)
                         .await
                     {
                         Ok(Some(options)) => {
-                            let _ = tx.send(Action::StreamLog(
-                                "Stream found. Launching Player...".into(),
-                            ));
+                            let _ = tx.send(Action::StreamLog(t!("logs.stream_found").to_string()));
 
                             let current_ep_num = Arc::new(tokio::sync::Mutex::new(
                                 episode.parse::<i32>().unwrap_or(1),
@@ -538,10 +535,10 @@ fn start_stream_task(app: &App, media: crate::models::Media, episode: String) {
                             let player = crate::player::mpv::MpvPlayer;
                             match player.play(options, Some(navigator)).await {
                                 Ok(percentage) => {
-                                    let _ = tx.send(Action::StreamLog(format!(
-                                        "Finished. Progress: {:.1}%",
-                                        percentage
-                                    )));
+                                    let _ = tx.send(Action::StreamLog(
+                                        t!("logs.finished", prog = format!("{:.1}", percentage))
+                                            .to_string(),
+                                    ));
 
                                     let final_ep_num = *current_ep_num.lock().await;
                                     let required_percentage =
@@ -551,8 +548,9 @@ fn start_stream_task(app: &App, media: crate::models::Media, episode: String) {
                                         && let (Some(token), Some(username)) =
                                             (&config.auth.anilist_token, &config.auth.username)
                                     {
-                                        let _ = tx
-                                            .send(Action::StreamLog("Updating AniList...".into()));
+                                        let _ = tx.send(Action::StreamLog(
+                                            t!("logs.updating_anilist").to_string(),
+                                        ));
                                         match api::get_user_progress(token, media.id, username)
                                             .await
                                         {
@@ -568,45 +566,52 @@ fn start_stream_task(app: &App, media: crate::models::Media, episode: String) {
                                                     .await
                                                     {
                                                         let _ = tx.send(Action::StreamLog(
-                                                            format!("AniList Update Failed: {}", e),
+                                                            t!("logs.update_failed", err = e)
+                                                                .to_string(),
                                                         ));
                                                     } else {
-                                                        let _ =
-                                                            tx.send(Action::StreamLog(format!(
-                                                                "AniList Updated to Ep {}",
-                                                                final_ep_num
-                                                            )));
+                                                        let _ = tx.send(Action::StreamLog(
+                                                            t!(
+                                                                "logs.updated_to_ep",
+                                                                ep = final_ep_num
+                                                            )
+                                                            .to_string(),
+                                                        ));
                                                     }
                                                 }
                                             }
                                             Err(e) => {
-                                                let _ = tx.send(Action::StreamLog(format!(
-                                                    "AniList Sync Error: {}",
-                                                    e
-                                                )));
+                                                let _ = tx.send(Action::StreamLog(
+                                                    t!("logs.sync_error", err = e).to_string(),
+                                                ));
                                             }
                                         }
                                     }
                                 }
                                 Err(e) => {
-                                    let _ =
-                                        tx.send(Action::StreamLog(format!("Player Error: {}", e)));
+                                    let _ = tx.send(Action::StreamLog(
+                                        t!("logs.player_error", err = e).to_string(),
+                                    ));
                                 }
                             }
                         }
                         Ok(None) => {
-                            let _ = tx.send(Action::StreamLog("No stream found.".into()));
+                            let _ = tx.send(Action::StreamLog(t!("logs.no_stream").to_string()));
                         }
                         Err(e) => {
-                            let _ = tx.send(Action::StreamLog(format!("Source Error: {}", e)));
+                            let _ = tx.send(Action::StreamLog(
+                                t!("logs.source_error", err = e).to_string(),
+                            ));
                         }
                     }
                 } else {
-                    let _ = tx.send(Action::StreamLog("No results found.".into()));
+                    let _ = tx.send(Action::StreamLog(t!("logs.no_results").to_string()));
                 }
             }
             Err(e) => {
-                let _ = tx.send(Action::StreamLog(format!("Search Error: {}", e)));
+                let _ = tx.send(Action::StreamLog(
+                    t!("logs.search_error", err = e).to_string(),
+                ));
             }
         }
 

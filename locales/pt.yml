@@ -1,20 +1,20 @@
 main_menu:
   trending: "🔥 Em Alta"
   popular: "✨ Populares"
-  top_scored: "💯 Melhores Avaliados"
+  top_scored: "💯 Melhor Avaliados"
   recently_updated: "🔔 Atualizados Recentemente"
   random: "🎲 Aleatório"
   options: "⚙️  Opções"
   exit: "❌ Sair"
 
 actions:
-  stream: "▶️  Assistir (Continuar)"
+  stream: "▶️  Assistir (Retomar)"
   episodes: "📺 Episódios"
-  trailer: "🎞️  Ver Trailer"
-  reviews: "📝 Ler Avaliações"
-  schedule: "📅 Calendário"
+  trailer: "🎞️  Assistir Trailer"
+  reviews: "📝 Ver Avaliações"
+  schedule: "📅 Calendário de Exibição"
   characters: "👥 Personagens"
-  related: "🔗 Relacionados"
+  related: "🔗 Animes Relacionados"
   recommendations: "💡 Recomendações"
 
 options:
@@ -24,12 +24,13 @@ options:
 
 titles:
   main_menu: " Menu Principal "
-  search_results: " Resultados "
+  search_results: " Resultados da Busca "
   actions: " Ações "
   select_episode: " Selecionar Episódio "
   options: " Opções "
   search: " Buscar "
   ani_l: " Ani-L "
+  stream_logs: " Logs de Transmissão "
 
 ui:
   loading: " ⏳ Carregando... "
@@ -44,8 +45,54 @@ ui:
   search_placeholder: "Pressione '/' para buscar..."
   episode_prefix: "Episódio %{num}"
 
+status:
+  searching: "Buscando..."
+  loading_image: "Carregando Imagem..."
+  no_image_found: "Imagem Não Encontrada"
+  terminal_not_supported: "Terminal não suportado.\nTente WezTerm, Ghostty, iTerm2 ou Kitty."
+  stream_initializing: "Inicializando Transmissão"
+
+ui_details:
+  score: "Nota: "
+  favs: "Favs: "
+  status: "Status: "
+  format: "Formato: "
+  genres: "Gêneros: "
+  description: "Descrição:"
+  details: "Detalhes:"
+  studios: "Estúdios: "
+  aired: "Exibido: "
+  to: " até "
+
+logs:
+  starting_process: "Iniciando Processo de Transmissão..."
+  searching_provider: "Buscando no AllAnime por '%{query}'..."
+  found: "Encontrado: %{name} (ID: %{id})"
+  fetching_episode: "Buscando Episódio %{ep}..."
+  stream_found: "Transmissão encontrada. Iniciando Player..."
+  finished: "Finalizado. Progresso: %{prog}%"
+  updating_anilist: "Atualizando AniList..."
+  update_failed: "Falha na Atualização do AniList: %{err}"
+  updated_to_ep: "AniList Atualizado para o Ep %{ep}"
+  sync_error: "Erro de Sincronização do AniList: %{err}"
+  player_error: "Erro no Player: %{err}"
+  no_stream: "Nenhuma transmissão encontrada."
+  source_error: "Erro na Fonte: %{err}"
+  no_results: "Nenhum resultado encontrado."
+  search_error: "Erro na Busca: %{err}"
+
+update:
+  title: " Atualização Disponível "
+  new_version: "Uma nova versão de "
+  available: " está disponível!"
+  current_version: "Versão Atual: "
+  latest_version: "Versão Mais Recente:  "
+  instruction: "Para atualizar, execute:"
+  command: "cargo install ani-l"
+  close: "Pressione [ESC] ou [Enter] para fechar"
+
 setup:
-  welcome: "\n👋 Bem-vindo ao ani-l! Parece ser sua primeira vez aqui."
+  welcome: "\n👋 Bem-vindo ao ani-l! Parece que esta é sua primeira vez."
   creating_config: "📝 Criando arquivo de configuração em %{path}"
   customize_prompt: "Gostaria de personalizar as outras configurações?"
   quality_prompt: "Qualidade Padrão (1080/720/480) [1080]: "
@@ -53,7 +100,7 @@ setup:
   use_defaults: "👍 Usando configurações padrão."
   saved: "✅ Configuração salva."
   auth_prompt: "Gostaria de autenticar com o AniList agora?"
-  complete: "🎉 Configuração completa! Agora você pode usar o ani-l."
+  complete: "🎉 Configuração completa! Você já pode usar o ani-l."
   auth_browser: "🌍 Abrindo navegador para autenticação..."
   auth_link: "🔗 Se não abrir, visite: %{url}"
   auth_tip_1: "Alguns terminais não permitem colar o token inteiro."
@@ -63,4 +110,4 @@ setup:
   verifying: "🔄 Verificando token..."
   logged_in: "✅ Logado com sucesso como: %{name}"
   auth_failed: "❌ Falha na autenticação: %{error}"
-  invalid_selection: "❌ Seleção inválida. Por favor digite 1-6."
+  invalid_selection: "❌ Seleção inválida. Por favor, insira 1-6."
