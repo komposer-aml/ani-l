@@ -239,11 +239,8 @@ async fn run_tui(mut config_manager: ConfigManager) -> anyhow::Result<()> {
     if app.config.general.check_updates {
         let update_tx = app.update_tx.clone();
         tokio::spawn(async move {
-            match api::check_for_updates().await {
-                Ok(Some(version)) => {
-                    let _ = update_tx.send(version);
-                }
-                _ => {}
+            if let Ok(Some(version)) = api::check_for_updates().await {
+                let _ = update_tx.send(version);
             }
         });
     }
