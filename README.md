@@ -1,8 +1,8 @@
 # ani-l
 
 ![GitHub Repo stars](https://img.shields.io/github/stars/komposer-aml/ani-l?style=flat&logo=github&label=Stars&link=https%3A%2F%2Fgithub.com%2Fkomposer-aml%2Fani-l)
-[![Crates.io](https://img.shields.io/crates/v/ani-l.svg?label=Crates.io)](https://img.shields.io/crates/d/ani-l)
-![Crates.io Total Downloads](https://img.shields.io/crates/d/ani-l?label=Downloads)
+[![Crates.io](https://img.shields.io/crates/v/ani-l.svg?label=Crates.io)](https://crates.io/crates/ani-l)
+[![Crates.io Total Downloads](https://img.shields.io/crates/d/ani-l?label=Downloads)](https://crates.io/crates/ani-l)
 [![License: LGPL-2.1](https://img.shields.io/badge/License-LGPL_2.1-blue.svg)](LICENSE)
 [![Rust CI](https://github.com/komposer-aml/ani-l/actions/workflows/ci.yml/badge.svg)](https://github.com/komposer-aml/ani-l/actions)
 
@@ -61,7 +61,7 @@ cargo install ani-l
 Clone the repository:
 
 ```bash
-git clone [https://github.com/komposer-aml/ani-l.git](https://github.com/komposer-aml/ani-l.git)
+git clone https://github.com/komposer-aml/ani-l.git
 cd ani-l
 ```
 
@@ -112,7 +112,7 @@ ani-l search trending --page 1
 Play a specific URL:
 
 ```bash
-ani-l play --url "[https://example.com/video.mp4](https://example.com/video.mp4)" --title "My Video"
+ani-l play --url "https://example.com/video.mp4" --title "My Video"
 ```
 
 Watch a specific episode (CLI Stream):
